@@ -16,6 +16,11 @@ function memoriesEqual(a: readonly number[], b: readonly number[]): boolean {
 export interface UseFileStateParams {
   memory: readonly number[]
   onLoadProgram: (memory: readonly number[]) => void
+  /** Seeds fileName/baseline from a resumed session (§11.10) - the restored
+   * memory should read as "unmodified since last saved," not as a
+   * from-scratch, already-dirty program. */
+  initialFileName?: string | null
+  initialBaselineMemory?: readonly number[] | null
 }
 
 export interface UseFileStateResult {
@@ -43,9 +48,14 @@ export interface UseFileStateResult {
  * import, not tied to registers or execution status (only memory is part of
  * the file format, per §7.1).
  */
-export function useFileState({ memory, onLoadProgram }: UseFileStateParams): UseFileStateResult {
-  const [fileName, setFileName] = useState<string | null>(null)
-  const [baselineMemory, setBaselineMemory] = useState<readonly number[] | null>(null)
+export function useFileState({
+  memory,
+  onLoadProgram,
+  initialFileName = null,
+  initialBaselineMemory = null,
+}: UseFileStateParams): UseFileStateResult {
+  const [fileName, setFileName] = useState<string | null>(initialFileName)
+  const [baselineMemory, setBaselineMemory] = useState<readonly number[] | null>(initialBaselineMemory)
 
   const isDirty = baselineMemory ? !memoriesEqual(memory, baselineMemory) : memory.some((byte) => byte !== 0)
 

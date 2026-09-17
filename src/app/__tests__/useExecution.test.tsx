@@ -18,7 +18,7 @@ describe('useExecution', () => {
   })
 
   it('handleStep executes one instruction and logs its output', () => {
-    const { result } = renderHook(() => useExecution(PROGRAM))
+    const { result } = renderHook(() => useExecution({ initialMemory: PROGRAM }))
     act(() => result.current.handleStep()) // LD
     expect(result.current.appState.registers.OUT).toBe(65)
     expect(result.current.appState.hasExecutionStarted).toBe(true)
@@ -36,7 +36,7 @@ describe('useExecution', () => {
   })
 
   it('does nothing if Step is called again after halting', () => {
-    const { result } = renderHook(() => useExecution(PROGRAM))
+    const { result } = renderHook(() => useExecution({ initialMemory: PROGRAM }))
     act(() => {
       result.current.handleStep()
       result.current.handleStep()
@@ -48,7 +48,7 @@ describe('useExecution', () => {
   })
 
   it('handleReset zeroes registers and clears halt state but leaves memory untouched', () => {
-    const { result } = renderHook(() => useExecution(PROGRAM))
+    const { result } = renderHook(() => useExecution({ initialMemory: PROGRAM }))
     act(() => {
       result.current.handleStep()
       result.current.handleStep()
@@ -64,7 +64,7 @@ describe('useExecution', () => {
   })
 
   it('Run executes steps on a timer and Stop pauses without erroring', () => {
-    const { result } = renderHook(() => useExecution(LOOP_PROGRAM))
+    const { result } = renderHook(() => useExecution({ initialMemory: LOOP_PROGRAM }))
     act(() => result.current.handleRunToggle())
     expect(result.current.isRunning).toBe(true)
 
@@ -81,7 +81,7 @@ describe('useExecution', () => {
   })
 
   it('handleDeleteAllData clears memory, registers, marks, and execution status together', () => {
-    const { result } = renderHook(() => useExecution(PROGRAM))
+    const { result } = renderHook(() => useExecution({ initialMemory: PROGRAM }))
     act(() => {
       result.current.handleStep()
       result.current.handleStep()
@@ -93,5 +93,92 @@ describe('useExecution', () => {
     expect(result.current.appState.halted).toBe(false)
     expect(result.current.appState.memory.every((b) => b === 0)).toBe(true)
     expect(result.current.appState.marks).toEqual({})
+  })
+
+  describe('undo/redo (§11.9)', () => {
+    it('starts with nothing to undo or redo', () => {
+      const { result } = renderHook(() => useExecution())
+      expect(result.current.canUndo).toBe(false)
+      expect(result.current.canRedo).toBe(false)
+    })
+
+    it('undoes a grid edit (bit toggle/clear/delete/move/paste all funnel through applyGridEdit)', () => {
+      const { result } = renderHook(() => useExecution())
+      const before = result.current.appState
+      act(() => result.current.applyGridEdit({ ...before, memory: [1, 0, 0] }))
+      expect(result.current.appState.memory[0]).toBe(1)
+      expect(result.current.canUndo).toBe(true)
+
+      act(() => result.current.handleUndo())
+      expect(result.current.appState.memory[0]).toBe(0)
+      expect(result.current.canUndo).toBe(false)
+      expect(result.current.canRedo).toBe(true)
+    })
+
+    it('redoes an undone edit', () => {
+      const { result } = renderHook(() => useExecution())
+      const before = result.current.appState
+      act(() => result.current.applyGridEdit({ ...before, memory: [1, 0, 0] }))
+      act(() => result.current.handleUndo())
+      act(() => result.current.handleRedo())
+      expect(result.current.appState.memory[0]).toBe(1)
+      expect(result.current.canRedo).toBe(false)
+      expect(result.current.canUndo).toBe(true)
+    })
+
+    it('treats each edit as its own undo step (one bit toggle = one step)', () => {
+      const { result } = renderHook(() => useExecution())
+      const s0 = result.current.appState
+      act(() => result.current.applyGridEdit({ ...s0, memory: [1, 0, 0] }))
+      act(() => result.current.applyGridEdit({ ...result.current.appState, memory: [1, 1, 0] }))
+      act(() => result.current.applyGridEdit({ ...result.current.appState, memory: [1, 1, 1] }))
+      expect(result.current.appState.memory.slice(0, 3)).toEqual([1, 1, 1])
+
+      act(() => result.current.handleUndo())
+      expect(result.current.appState.memory.slice(0, 3)).toEqual([1, 1, 0])
+      act(() => result.current.handleUndo())
+      expect(result.current.appState.memory.slice(0, 3)).toEqual([1, 0, 0])
+      act(() => result.current.handleUndo())
+      expect(result.current.appState.memory.slice(0, 3)).toEqual([0, 0, 0])
+      expect(result.current.canUndo).toBe(false)
+    })
+
+    it('a new edit clears the redo stack', () => {
+      const { result } = renderHook(() => useExecution())
+      const s0 = result.current.appState
+      act(() => result.current.applyGridEdit({ ...s0, memory: [1, 0, 0] }))
+      act(() => result.current.handleUndo())
+      expect(result.current.canRedo).toBe(true)
+
+      act(() => result.current.applyGridEdit({ ...result.current.appState, memory: [2, 0, 0] }))
+      expect(result.current.canRedo).toBe(false)
+    })
+
+    it('Delete All Data is itself undoable', () => {
+      const { result } = renderHook(() => useExecution({ initialMemory: PROGRAM }))
+      act(() => result.current.handleDeleteAllData())
+      expect(result.current.appState.memory.every((b) => b === 0)).toBe(true)
+
+      act(() => result.current.handleUndo())
+      expect(result.current.appState.memory.slice(0, 4)).toEqual(PROGRAM)
+    })
+
+    it('does not treat Step/Run or handleLoadProgram as undoable', () => {
+      const { result } = renderHook(() => useExecution({ initialMemory: PROGRAM }))
+      act(() => result.current.handleStep())
+      expect(result.current.canUndo).toBe(false)
+
+      act(() => result.current.handleLoadProgram([9, 9, 9]))
+      expect(result.current.canUndo).toBe(false)
+    })
+
+    it('undo/redo of nothing is a harmless no-op', () => {
+      const { result } = renderHook(() => useExecution())
+      const before = result.current.appState
+      act(() => result.current.handleUndo())
+      expect(result.current.appState).toBe(before)
+      act(() => result.current.handleRedo())
+      expect(result.current.appState).toBe(before)
+    })
   })
 })

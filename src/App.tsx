@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { Button } from '@/components/ui/button'
 import { ExecutionConsole } from '@/components/console/ExecutionConsole'
 import { ExecutionControls } from '@/components/execution/ExecutionControls'
 import { FileControls } from '@/components/file/FileControls'
@@ -8,11 +9,22 @@ import { AsciiTablePanel } from '@/components/reference/AsciiTablePanel'
 import { CollapsiblePanel } from '@/components/reference/CollapsiblePanel'
 import { InstructionReferencePanel } from '@/components/reference/InstructionReferencePanel'
 import { UserGuidePanel } from '@/components/reference/UserGuidePanel'
+import { ZoomControl } from '@/components/settings/ZoomControl'
 import { decode } from '@/engine/decode'
 import { useExecution } from '@/app/useExecution'
 import { useFileState } from '@/app/useFileState'
+import { usePersistence } from '@/app/usePersistence'
+
+/** Ctrl/Cmd+Z (Shift held = redo) - skipped while focus is in a form
+ * control, so it doesn't hijack that control's own native undo (e.g. while
+ * typing in the snapshot-import field or a filename prompt). */
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  return target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
+}
 
 function App() {
+  const persistence = usePersistence()
   const {
     appState,
     applyGridEdit,
@@ -27,13 +39,62 @@ function App() {
     handleClearConsole,
     handleDeleteAllData,
     handleLoadProgram,
-  } = useExecution()
-  const file = useFileState({ memory: appState.memory, onLoadProgram: handleLoadProgram })
-  const [autoAdvance, setAutoAdvance] = useState(false)
+    canUndo,
+    canRedo,
+    handleUndo,
+    handleRedo,
+  } = useExecution({
+    initialMemory: persistence.initialMemory,
+    initialMarks: persistence.initialMarks,
+    initialStepDelayMs: persistence.settings.stepDelayMs,
+  })
+  const file = useFileState({
+    memory: appState.memory,
+    onLoadProgram: handleLoadProgram,
+    initialFileName: persistence.settings.lastFileName,
+    initialBaselineMemory: persistence.initialMemory ?? null,
+  })
   const [memoryCursorAddress, setMemoryCursorAddress] = useState<number | null>(0)
-  const [userGuideOpen, setUserGuideOpen] = useState(false)
-  const [instructionReferenceOpen, setInstructionReferenceOpen] = useState(false)
-  const [asciiTableOpen, setAsciiTableOpen] = useState(false)
+
+  const { settings, updateSettings } = persistence
+  const autoAdvance = settings.autoAdvance
+  const setAutoAdvance = (value: boolean) => updateSettings({ autoAdvance: value })
+
+  // Persist the "resume last session" slice whenever memory/marks change -
+  // usePersistence debounces the actual write (§11.10).
+  useEffect(() => {
+    persistence.notifySession({ memory: appState.memory, marks: appState.marks })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- persistence itself is stable; only the data should retrigger this
+  }, [appState.memory, appState.marks])
+
+  // Sync the live execution speed (owned by useExecution, since Run's timer
+  // needs it) into the persisted preference, and the reverse on first load.
+  useEffect(() => {
+    updateSettings({ stepDelayMs })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stepDelayMs])
+
+  useEffect(() => {
+    updateSettings({ lastFileName: file.fileName })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [file.fileName])
+
+  // UI zoom/text size (§9): scales every rem-based size site-wide.
+  useEffect(() => {
+    document.documentElement.style.fontSize = `${settings.zoomPercent}%`
+  }, [settings.zoomPercent])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'z') return
+      if (isTypingTarget(event.target)) return
+      event.preventDefault()
+      if (event.shiftKey) handleRedo()
+      else handleUndo()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [handleRedo, handleUndo])
 
   // Predictive highlighting follows the edit cursor while idle, and the
   // program counter once execution has started (webapp-requirements.md §5).
@@ -51,21 +112,32 @@ function App() {
   return (
     <div className="flex flex-col gap-6 p-4 lg:flex-row lg:items-start">
       <div className="flex min-w-0 flex-1 flex-col gap-6">
-        <h1 className="text-2xl font-semibold">c3pu</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-semibold">c3pu</h1>
+          <ZoomControl zoomPercent={settings.zoomPercent} onChange={(zoomPercent) => updateSettings({ zoomPercent })} />
+        </div>
 
         <FileControls file={file} />
 
-        <ExecutionControls
-          isRunning={isRunning}
-          halted={appState.halted}
-          haltReason={appState.haltReason}
-          error={appState.error}
-          stepDelayMs={stepDelayMs}
-          onStep={handleStep}
-          onRunToggle={handleRunToggle}
-          onReset={handleReset}
-          onStepDelayChange={setStepDelayMs}
-        />
+        <div className="flex flex-wrap items-center gap-3">
+          <ExecutionControls
+            isRunning={isRunning}
+            halted={appState.halted}
+            haltReason={appState.haltReason}
+            error={appState.error}
+            stepDelayMs={stepDelayMs}
+            onStep={handleStep}
+            onRunToggle={handleRunToggle}
+            onReset={handleReset}
+            onStepDelayChange={setStepDelayMs}
+          />
+          <Button size="sm" variant="outline" onClick={handleUndo} disabled={!canUndo} title="Undo (Ctrl/Cmd+Z)">
+            Undo
+          </Button>
+          <Button size="sm" variant="outline" onClick={handleRedo} disabled={!canRedo} title="Redo (Ctrl/Cmd+Shift+Z)">
+            Redo
+          </Button>
+        </div>
 
         <ExecutionConsole consoleState={consoleState} onClear={handleClearConsole} />
 
@@ -101,13 +173,25 @@ function App() {
       </div>
 
       <div className="flex w-full flex-col gap-3 lg:w-80 lg:shrink-0">
-        <CollapsiblePanel title="User guide" open={userGuideOpen} onOpenChange={setUserGuideOpen}>
+        <CollapsiblePanel
+          title="User guide"
+          open={settings.panelOpen.userGuide}
+          onOpenChange={(open) => updateSettings({ panelOpen: { ...settings.panelOpen, userGuide: open } })}
+        >
           <UserGuidePanel />
         </CollapsiblePanel>
-        <CollapsiblePanel title="Instruction reference" open={instructionReferenceOpen} onOpenChange={setInstructionReferenceOpen}>
+        <CollapsiblePanel
+          title="Instruction reference"
+          open={settings.panelOpen.instructionReference}
+          onOpenChange={(open) => updateSettings({ panelOpen: { ...settings.panelOpen, instructionReference: open } })}
+        >
           <InstructionReferencePanel currentMnemonic={currentMnemonic} />
         </CollapsiblePanel>
-        <CollapsiblePanel title="ASCII table" open={asciiTableOpen} onOpenChange={setAsciiTableOpen}>
+        <CollapsiblePanel
+          title="ASCII table"
+          open={settings.panelOpen.asciiTable}
+          onOpenChange={(open) => updateSettings({ panelOpen: { ...settings.panelOpen, asciiTable: open } })}
+        >
           <AsciiTablePanel />
         </CollapsiblePanel>
       </div>
