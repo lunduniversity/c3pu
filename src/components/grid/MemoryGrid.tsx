@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import type { Effect } from '@/engine/types'
 import { parseClipboardText, serializeSelection } from '@/grid/clipboard'
@@ -28,6 +28,14 @@ export interface MemoryGridProps {
   lastChanged?: readonly Effect[]
   haltedNormallyAt?: number | null
   errorAt?: number | null
+  /** Notifies the parent of the current edit-cursor address, so sibling
+   * views (e.g. RegisterGrid) can predict from the same source cell. */
+  onCursorChange?: (address: number) => void
+  /** Overrides the default Delete All Data handling (which only touches
+   * memory/registers/marks) - e.g. so the app layer can also clear
+   * execution status, which this component has no notion of. Still asks
+   * for confirmation itself either way. */
+  onDeleteAllData?: () => void
 }
 
 export function MemoryGrid({
@@ -38,6 +46,8 @@ export function MemoryGrid({
   lastChanged = [],
   haltedNormallyAt = null,
   errorAt = null,
+  onCursorChange,
+  onDeleteAllData,
 }: MemoryGridProps) {
   const onToggleBit = useCallback((address: number, bitIndex: number) => onChange(toggleMemoryBit(state, address, bitIndex)), [state, onChange])
   const onSetBit = useCallback(
@@ -51,6 +61,10 @@ export function MemoryGrid({
     onToggleBit,
     onSetBit,
   })
+
+  useEffect(() => {
+    onCursorChange?.(cursor.cellIndex)
+  }, [cursor.cellIndex, onCursorChange])
 
   const selectionRange = useMemo(() => ({ start: Math.min(selection.anchor, selection.focus), end: Math.max(selection.anchor, selection.focus) }), [selection])
 
@@ -118,10 +132,10 @@ export function MemoryGrid({
     [state, selectionRange, onChange],
   )
   const handleDeleteAllData = useCallback(() => {
-    if (window.confirm('Delete all memory and register data? This cannot be undone.')) {
-      onChange(deleteAllData())
-    }
-  }, [onChange])
+    if (!window.confirm('Delete all memory and register data? This cannot be undone.')) return
+    if (onDeleteAllData) onDeleteAllData()
+    else onChange(deleteAllData())
+  }, [onChange, onDeleteAllData])
 
   return (
     <div>

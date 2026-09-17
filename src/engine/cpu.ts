@@ -217,53 +217,84 @@ export interface RunResult {
   steps: number
 }
 
+export interface RunTicker {
+  /** Executes exactly one step and updates this ticker's own stuck-program/
+   * step-cap bookkeeping. Must not be called again once a tick returns a
+   * halted/errored state. */
+  next(state: CpuState): { state: CpuState; result: StepResult }
+  /** Number of instructions actually executed so far (excludes a tick that
+   * only hit the step-cap without executing anything). */
+  readonly stepCount: number
+}
+
+/**
+ * The stuck-program/step-cap bookkeeping behind `run()`, factored out so a
+ * UI-driven Run (one step per timer tick, with a visible delay and a Stop
+ * button - webapp-requirements.md §4) can reuse the exact same detection
+ * logic instead of duplicating it, while still being interruptible between
+ * ticks the way a single synchronous `run()` call cannot be.
+ */
+export function createRunTicker(maxSteps: number = RUN_STEP_CAP): RunTicker {
+  let steps = 0
+  let prevPc: number | null = null
+  let prevOutputLength = 0
+  let totalOutputLength = 0
+
+  return {
+    get stepCount() {
+      return steps
+    },
+    next(state: CpuState): { state: CpuState; result: StepResult } {
+      if (steps >= maxSteps) {
+        const error: RuntimeError = {
+          kind: 'step-cap',
+          message: `exceeded the ${maxSteps}-step safety cap for a single run`,
+          address: state.registers.PC,
+        }
+        return {
+          state: { ...state, halted: true, error },
+          result: { output: [], changed: [], error, halted: null },
+        }
+      }
+
+      const pcBefore = state.registers.PC
+      const { state: nextState, result } = step(state)
+      steps++
+      totalOutputLength += result.output.length
+
+      if (result.error) return { state: nextState, result }
+
+      if (prevPc !== null && pcBefore === prevPc && totalOutputLength === prevOutputLength) {
+        const error: RuntimeError = {
+          kind: 'stuck-program',
+          message: 'the program counter revisited the same address with no output in between',
+          address: pcBefore,
+        }
+        return { state: { ...nextState, halted: true, error }, result: { ...result, error } }
+      }
+
+      prevPc = pcBefore
+      prevOutputLength = totalOutputLength
+      return { state: nextState, result }
+    },
+  }
+}
+
 /**
  * Repeatedly steps until halt/error, the 1000-step safety cap
  * (webapp-requirements.md §4) is hit, or a stuck program is detected: the PC
  * revisits its previous-step address with no output produced in between.
  */
 export function run(initialState: CpuState, maxSteps: number = RUN_STEP_CAP): RunResult {
+  const ticker = createRunTicker(maxSteps)
   let state = initialState
   const output: OutputEvent[] = []
-  let steps = 0
-  let prevPc: number | null = null
-  let prevOutputLength = 0
 
   while (!state.halted && !state.error) {
-    if (steps >= maxSteps) {
-      const error: RuntimeError = {
-        kind: 'step-cap',
-        message: `exceeded the ${maxSteps}-step safety cap for a single run`,
-        address: state.registers.PC,
-      }
-      state = { ...state, halted: true, error }
-      break
-    }
-
-    const pcBefore = state.registers.PC
-    const { state: nextState, result } = step(state)
+    const { state: nextState, result } = ticker.next(state)
     output.push(...result.output)
-    steps++
-
-    if (result.error) {
-      state = nextState
-      break
-    }
-
-    if (prevPc !== null && pcBefore === prevPc && output.length === prevOutputLength) {
-      const error: RuntimeError = {
-        kind: 'stuck-program',
-        message: 'the program counter revisited the same address with no output in between',
-        address: pcBefore,
-      }
-      state = { ...nextState, halted: true, error }
-      break
-    }
-
-    prevPc = pcBefore
-    prevOutputLength = output.length
     state = nextState
   }
 
-  return { state, output, steps }
+  return { state, output, steps: ticker.stepCount }
 }

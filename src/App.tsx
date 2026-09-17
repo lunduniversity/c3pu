@@ -1,26 +1,80 @@
 import { useState } from 'react'
+import { ExecutionConsole } from '@/components/console/ExecutionConsole'
+import { ExecutionControls } from '@/components/execution/ExecutionControls'
 import { MemoryGrid } from '@/components/grid/MemoryGrid'
 import { RegisterGrid } from '@/components/grid/RegisterGrid'
-import { createGridState, type GridState } from '@/grid/model'
+import { useExecution } from '@/app/useExecution'
 
 function App() {
-  const [state, setState] = useState<GridState>(() => createGridState())
+  const {
+    appState,
+    applyGridEdit,
+    consoleState,
+    isRunning,
+    stepDelayMs,
+    setStepDelayMs,
+    lastChanged,
+    handleStep,
+    handleRunToggle,
+    handleReset,
+    handleClearConsole,
+    handleDeleteAllData,
+  } = useExecution()
   const [autoAdvance, setAutoAdvance] = useState(false)
+  const [memoryCursorAddress, setMemoryCursorAddress] = useState<number | null>(0)
+
+  // Predictive highlighting follows the edit cursor while idle, and the
+  // program counter once execution has started (webapp-requirements.md §5).
+  const predictionSource = appState.hasExecutionStarted ? appState.registers.PC : memoryCursorAddress
+  const haltedNormallyAt = appState.halted && appState.haltReason === 'normal' ? appState.registers.PC : null
+  const errorAt = appState.error ? appState.error.address : null
 
   return (
     <div className="flex flex-col gap-6 p-4">
       <h1 className="text-2xl font-semibold">c3pu</h1>
+
+      <ExecutionControls
+        isRunning={isRunning}
+        halted={appState.halted}
+        haltReason={appState.haltReason}
+        error={appState.error}
+        stepDelayMs={stepDelayMs}
+        onStep={handleStep}
+        onRunToggle={handleRunToggle}
+        onReset={handleReset}
+        onStepDelayChange={setStepDelayMs}
+      />
+
+      <ExecutionConsole consoleState={consoleState} onClear={handleClearConsole} />
+
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" checked={autoAdvance} onChange={(e) => setAutoAdvance(e.target.checked)} />
         Auto-advance cursor after editing a bit
       </label>
+
       <section>
         <h2 className="mb-2 text-lg font-medium">Registers</h2>
-        <RegisterGrid state={state} onChange={setState} autoAdvance={autoAdvance} />
+        <RegisterGrid
+          state={appState}
+          onChange={applyGridEdit}
+          autoAdvance={autoAdvance}
+          memoryCursorAddress={predictionSource}
+          lastChanged={lastChanged}
+        />
       </section>
       <section>
         <h2 className="mb-2 text-lg font-medium">Memory</h2>
-        <MemoryGrid state={state} onChange={setState} autoAdvance={autoAdvance} />
+        <MemoryGrid
+          state={appState}
+          onChange={applyGridEdit}
+          autoAdvance={autoAdvance}
+          programCounterAddress={appState.hasExecutionStarted ? appState.registers.PC : null}
+          lastChanged={lastChanged}
+          haltedNormallyAt={haltedNormallyAt}
+          errorAt={errorAt}
+          onCursorChange={setMemoryCursorAddress}
+          onDeleteAllData={handleDeleteAllData}
+        />
       </section>
     </div>
   )
