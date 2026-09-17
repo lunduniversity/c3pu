@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { ExecutionConsole } from '@/components/console/ExecutionConsole'
 import { ExecutionControls } from '@/components/execution/ExecutionControls'
+import { FileControls } from '@/components/file/FileControls'
 import { MemoryGrid } from '@/components/grid/MemoryGrid'
 import { RegisterGrid } from '@/components/grid/RegisterGrid'
 import { useExecution } from '@/app/useExecution'
+import { useFileState } from '@/app/useFileState'
 
 function App() {
   const {
@@ -19,7 +21,9 @@ function App() {
     handleReset,
     handleClearConsole,
     handleDeleteAllData,
+    handleLoadProgram,
   } = useExecution()
+  const file = useFileState({ memory: appState.memory, onLoadProgram: handleLoadProgram })
   const [autoAdvance, setAutoAdvance] = useState(false)
   const [memoryCursorAddress, setMemoryCursorAddress] = useState<number | null>(0)
 
@@ -32,6 +36,8 @@ function App() {
   return (
     <div className="flex flex-col gap-6 p-4">
       <h1 className="text-2xl font-semibold">c3pu</h1>
+
+      <FileControls file={file} />
 
       <ExecutionControls
         isRunning={isRunning}

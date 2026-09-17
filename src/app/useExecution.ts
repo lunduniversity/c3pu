@@ -27,6 +27,8 @@ export interface UseExecutionResult {
   /** Delete All Data (webapp-requirements.md §5): resets memory/registers/
    * marks *and* execution status together, unlike a plain grid edit. */
   handleDeleteAllData: () => void
+  /** Replaces memory wholesale - Open, an example, or a snapshot import. */
+  handleLoadProgram: (memory: readonly number[]) => void
 }
 
 export function useExecution(initialMemory?: readonly number[]): UseExecutionResult {
@@ -128,23 +130,39 @@ export function useExecution(initialMemory?: readonly number[]): UseExecutionRes
     }
   }, [isRunning, stepDelayMs, runTick])
 
-  const handleReset = useCallback(() => {
+  // Shared by Reset, Delete All Data, and loading a new program (Open/an
+  // example/a snapshot import): none of those make sense mid-Run.
+  const stopExecution = useCallback(() => {
     stopTimer()
     setIsRunning(false)
     tickerRef.current = null
+  }, [stopTimer])
+
+  const handleReset = useCallback(() => {
+    stopExecution()
     setBothAppState(resetExecution(appStateRef.current))
     setLastChanged([])
-  }, [setBothAppState, stopTimer])
+  }, [setBothAppState, stopExecution])
 
   const handleClearConsole = useCallback(() => setConsoleState(clearConsole()), [])
 
   const handleDeleteAllData = useCallback(() => {
-    stopTimer()
-    setIsRunning(false)
-    tickerRef.current = null
+    stopExecution()
     setBothAppState(createAppState())
     setLastChanged([])
-  }, [setBothAppState, stopTimer])
+  }, [setBothAppState, stopExecution])
+
+  /** Replaces memory wholesale (Open, an example, or a snapshot import) -
+   * registers and marks reset, execution status cleared, like a fresh
+   * session with this program already typed in. */
+  const handleLoadProgram = useCallback(
+    (memory: readonly number[]) => {
+      stopExecution()
+      setBothAppState(createAppState(memory))
+      setLastChanged([])
+    },
+    [setBothAppState, stopExecution],
+  )
 
   return {
     appState,
@@ -159,5 +177,6 @@ export function useExecution(initialMemory?: readonly number[]): UseExecutionRes
     handleReset,
     handleClearConsole,
     handleDeleteAllData,
+    handleLoadProgram,
   }
 }
