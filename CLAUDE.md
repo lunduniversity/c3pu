@@ -62,12 +62,18 @@ directory under `src/` and only talks to the layer(s) below it:
    user marks), so a 2-cell instruction's trailing operand cell being
    auto-marked — and un-marked when the leading cell's marking or opcode
    changes — falls out for free instead of needing invalidation logic.
-   `model.ts` has the edit operations (bit toggle, clear/delete/move/paste
-   with the exact truncation rules from §5). `highlight.ts` computes
-   predictive/actual-change/selection/PC/halt/error flags per cell;
-   `highlightBitmask.ts` flattens those into a single integer so the row
-   components below can memoize on a primitive prop instead of object
-   identity (§11.4).
+   `model.ts` has the edit operations (bit toggle, clear/delete/move/paste/
+   insert, with the exact truncation rules from §5) — `moveMemoryRange`
+   (single-step up/down) delegates to the more general `moveMemoryRangeTo`,
+   which the row handle's drag-to-arbitrary-position reordering also uses
+   directly. `highlight.ts` computes predictive/actual-change/selection/
+   PC/halt/error flags per cell; `highlightBitmask.ts` flattens those into a
+   single integer so the row components below can memoize on a primitive
+   prop instead of object identity (§11.4). `program-file.ts` layers the
+   §7.1 `%`-annotation mark grammar on top of `engine/program-format.ts`'s
+   plain byte parsing for whole-program Open/Save — marks don't round-trip
+   through clipboard copy/paste or the compact snapshot format, which stay
+   memory-only.
 
 3. **`src/app/`** — React hooks that own state and orchestrate the two pure
    layers. `AppState` (in `state.ts`) extends `GridState` with execution
@@ -76,8 +82,10 @@ directory under `src/` and only talks to the layer(s) below it:
    whether that got there by hand-editing or by running the program.
    `useExecution` owns `AppState`, the console log, the undo/redo stack, and
    the Run timer; `useFileState` owns Open/Save/Close and unsaved-changes
-   tracking (dirty = memory differs from a baseline, not tied to
-   registers/execution status — only memory is part of the file format);
+   tracking (dirty = memory *or marks* differing from a baseline, not tied
+   to registers/execution status — both are part of the file format since
+   §7.1 grew mark annotations; a snapshot import's baseline has empty marks,
+   since that format doesn't carry them);
    `usePersistence` owns the debounced localStorage sync.
 
 4. **`src/components/`** — presentational React, grouped by feature
@@ -86,7 +94,20 @@ directory under `src/` and only talks to the layer(s) below it:
    bit-editor grid (`components/grid/`) is bespoke (roving-tabindex keyboard
    nav + pointer-driven range selection, both centralized in the shared
    `useBitGrid` hook reused by `MemoryGrid` and `RegisterGrid`), per
-   `tech-stack.md`'s explicit split.
+   `tech-stack.md`'s explicit split. The interaction model is mouse-first: a
+   single click only selects (spreadsheet-style); double-click or the
+   keyboard flips a bit. Range selection starts from anywhere in a row's
+   non-text "gutter" (address, effect dots, handle/actions) but deliberately
+   not from the read-only hex/decimal/ASCII/instruction columns, which stay
+   natively selectable text. `useRowDrag` (memory only) handles the row
+   handle's drag-to-arbitrary-position reordering — it uses explicit pointer
+   capture plus `elementFromPoint` hit-testing rather than `pointerenter` on
+   the hovered row, because that doesn't reliably fire while dragging from a
+   native `<button>` the way it does from `useBitGrid`'s plain-div selection
+   drag. `MemoryGridHeader`/`RegisterGridHeader` and `HighlightLegend` are
+   presentational-only, deliberately mirroring each row component's own
+   width/gap classes (headers) or highlight utility classes (legend) rather
+   than computing their own layout/colors, so they can't drift out of sync.
 
 Supporting, mostly-standalone modules: `src/console/` (the output-log data
 model, §6's three visually-distinct categories), `src/snapshot/` (the §7.3
@@ -97,7 +118,11 @@ build at compile time, not fetched at runtime), `src/reference/` (the
 instruction-reference panel's prose, kept separate from `decode.ts`'s
 structural logic), `src/ascii.ts` (the ASCII table, shared by the memory
 grid's ASCII column and the ASCII reference panel), `src/settings/`
-(persisted-preferences shape + validation + the localStorage wrapper).
+(persisted-preferences shape + validation + the localStorage wrapper),
+`src/lib/useLatestRef.ts` (a ref that tracks the latest value of something
+without putting it in a `useCallback`'s dependency array — used to keep the
+memory/register grids' per-row callbacks referentially stable; see the
+memoization note under "Things that are easy to get wrong" below).
 
 ### Things that are easy to get wrong here
 
@@ -114,11 +139,12 @@ grid's ASCII column and the ASCII reference panel), `src/settings/`
   `step()` and `createRunTicker()` are intentionally separate entry points
   in `cpu.ts` — don't route Step through a ticker.
 - **Undo/redo is scoped to in-place edits only**: bit toggle, clear, delete,
-  move, paste, and Delete All Data (all funnel through
-  `useExecution`'s `applyGridEdit`/`handleDeleteAllData`). Execution
-  stepping and Open/Close/Examples/snapshot-import are deliberately not
-  undoable — don't wire new "replace everything" actions through the undo
-  stack without checking that's actually wanted.
+  insert, move (single-step or drag-to-arbitrary-position), paste, and
+  Delete All Data (all funnel through `useExecution`'s
+  `applyGridEdit`/`handleDeleteAllData`). Execution stepping and
+  Open/Close/Examples/snapshot-import are deliberately not undoable — don't
+  wire new "replace everything" actions through the undo stack without
+  checking that's actually wanted.
 - **Session persistence resumes memory + marks only**, never registers or
   execution status — a reload always starts from a fresh, non-halted
   context. `localStorage` access is always wrapped in try/catch (it can be
@@ -129,6 +155,21 @@ grid's ASCII column and the ASCII reference panel), `src/settings/`
 - Confirmations (unsaved changes, Delete All Data) use `window.confirm`/
   `prompt`/`alert` rather than a shadcn dialog — a deliberate scope cut, not
   an oversight; worth revisiting as a dedicated polish pass if asked.
+- **256 memory rows are memoized (`React.memo` in `MemoryRow.tsx`), and that
+  only works if the callbacks passed identically to every row keep a stable
+  identity across renders.** `MemoryGrid.tsx`/`RegisterGrid.tsx` read
+  `state`/selection through `useLatestRef` inside those callbacks instead of
+  closing over them directly, specifically so editing one cell doesn't bust
+  every other row's memo and force a full re-render. If you add a new
+  per-row callback, route it through the same pattern — it's easy to
+  silently reintroduce a full-grid re-render on every keystroke otherwise.
+- **A row's background is picked by priority (`rowBackground()` in
+  `MemoryRow.tsx`), not layered.** Several highlight flags can be true on
+  the same row at once (e.g. the PC's own cell is selected), and stacking
+  multiple `bg-*` utility classes leaves which one actually renders up to
+  Tailwind's generated stylesheet order, which isn't predictable from the
+  component. Add new background states to that priority function, not as
+  another parallel `&&`-conditional class.
 
 ### Testing conventions
 

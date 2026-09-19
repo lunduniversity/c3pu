@@ -67,11 +67,14 @@ Explorer being the canonical example). Concretely, for this app:
   auto-updated — latest stable Chrome, Firefox, or Edge on Windows; latest
   stable Safari on macOS. No legacy-browser support is needed.
 - **Mobile/touch**: nice-to-have, very low priority. Don't let it constrain core
-  design decisions or cost extra implementation effort — though note the
-  toggle-based bit editor design in §11.2 of the requirements doc (tap-to-flip,
-  no reliance on a physical keyboard) already happens to behave reasonably on a
-  touchscreen as a side effect of being the right design for desktop, so
-  baseline mobile usability should come close to free.
+  design decisions or cost extra implementation effort. Note that the bit
+  editor's interaction model changed from the original tap-to-flip design to a
+  mouse-first, spreadsheet-style one (§11.2 of the requirements doc, revised):
+  a single tap/click now only selects, and flipping is a double-click/tap or
+  the `F` key. Double-tap-to-flip still works reasonably on a touchscreen, but
+  it's a deliberate trade-off for the desktop-first "click selects" behavior,
+  not a free side effect the way plain tap-to-flip was — don't assume
+  touch/mobile usability comes for free from this design without checking.
 - Since legacy-browser support is explicitly not a goal, modern CSS/JS features
   (e.g. `:has()`, container queries, CSS nesting, `color-scheme`) are fair game
   where they simplify the implementation.

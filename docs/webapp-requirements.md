@@ -104,11 +104,11 @@ Notes:
   memory position, which memory cells and which registers it *would* read/write if
   executed — this is required to drive the predictive highlighting described in
   §5, and should be computed statically (without actually executing anything).
-- *(Candidate enhancement, not yet decided — see §11.11)*: when a 2-cell
-  instruction's leading cell is explicitly marked as "this is code," its trailing
-  operand cell's role is fully determined by that marking (it's that
-  instruction's data, not an independently-interpretable cell) and so should be
-  marked automatically rather than left for the user to mark separately.
+- Decided and implemented (§11.11): when a 2-cell instruction's leading cell
+  is explicitly marked as "this is code," its trailing operand cell's role is
+  fully determined by that marking (it's that instruction's data, not an
+  independently-interpretable cell) and so is marked automatically rather
+  than left for the user to mark separately.
 
 ## 4. Execution model
 
@@ -143,10 +143,11 @@ Notes:
 
 - Every memory cell and register is always shown simultaneously in multiple
   representations: raw binary, hex, decimal, ASCII (memory only where applicable),
-  and — for memory cells — the live decoded-instruction view from §3. *(Candidate
-  enhancement under consideration, not yet decided — see §11.11: letting the user
-  explicitly mark which single interpretation is the "correct"/intended one for a
-  given cell, rather than leaving all of them equally presented.)*
+  and — for memory cells — the live decoded-instruction view from §3. The user
+  can explicitly mark which single interpretation is the "correct"/intended
+  one for a given cell, rather than leaving all of them equally presented
+  (decided and implemented — see §11.11); an unmarked cell still shows every
+  representation equally, as above.
 - Values are edited at the **bit level** (toggle/set individual bits of the
   selected cell), not via a decimal/hex text field — this reinforces "everything
   is bits" as a learning goal. (A text-field/decimal-entry editing mode is a
@@ -204,6 +205,13 @@ Notes:
 - Errors that prevent showing a meaningful prediction (e.g. the program counter is
   itself out of bounds) should be indicated as an error state rather than silently
   showing nothing.
+- With this many simultaneous highlight states, a color legend/key explaining
+  what each one means should be visible alongside the grids, not left for the
+  user to infer. Both grids should also have column headers (address/register
+  name, bit positions, hex/decimal/ASCII, decoded instruction, mark) so a cell's
+  representation columns are self-explanatory without hovering or guessing;
+  memory's header should stay visible (e.g. pinned/sticky) while scrolling
+  through its 256 rows.
 
 ## 6. Output / console
 
@@ -449,11 +457,11 @@ architecturally separate:
   of the app's custom selection highlight).
 - **Revised, mouse-first interaction model**: a memory row's drag-select zone
   extends beyond its bits to the address label, the predicted-effect dots, and
-  the row's own handle/action-buttons gutter (§11.11-adjacent — see below) —
-  clicking and dragging over any of those starts the same range selection as
-  dragging across bits, so a selection doesn't require landing on a specific
-  bit. It deliberately stops there: the read-only representation columns keep
-  the native text selection described above. Each memory row additionally
+  the row's own handle/action-buttons gutter — clicking and dragging over any
+  of those starts the same range selection as dragging across bits, so a
+  selection doesn't require landing on a specific bit. It deliberately stops
+  there: the read-only representation columns keep the native text selection
+  described above. Each memory row additionally
   gets a drag handle (moves that row, or the active selection if the row is
   part of one, to an arbitrary position — a generalization of the single-step
   Move up/down in §5) and per-row Clear/Delete/Insert-before/Insert-after
@@ -468,13 +476,23 @@ architecturally separate:
 ### 11.4 Rendering performance
 
 256 memory cells × 8 bits (plus 8 registers × 8 bits) is roughly 2,000
-interactive elements, some of which change on every step of a fast Run. Keep a
-single flat array as the source of truth (not per-bit component state), and
-memoize per-cell components on primitive props (value + a small highlight-flags
-value) so only cells that actually changed re-render. This achieves, in an
-idiomatic web way, the same goal the desktop app's listener-based storage model
-was already designed around (§ "reactivity model": notify only what changed,
-re-render only that).
+interactive elements, some of which change on every step of a fast Run — more,
+now that each memory row also carries a drag handle and per-row action buttons
+(§11.2/§11.3, revised). Keep a single flat array as the source of truth (not
+per-bit component state), and memoize per-cell/per-row components on primitive
+props (value + a small highlight-flags value) so only cells that actually
+changed re-render. This achieves, in an idiomatic web way, the same goal the
+desktop app's listener-based storage model was already designed around
+(§ "reactivity model": notify only what changed, re-render only that).
+
+This memoization only holds if the *callbacks* passed identically to every
+row also keep a stable identity across renders — a callback that closes over
+`state` (or the current selection) directly gets a new identity on every
+edit, which busts every row's memo and re-renders the whole grid regardless
+of how few cells actually changed. The fix is a ref that always holds the
+latest value, read from inside the callback instead of captured in its
+closure, so the callback's own identity doesn't need to change when that
+value does.
 
 ### 11.5 Accessibility and input robustness
 
@@ -565,11 +583,11 @@ clean state shape, not a scramble later:
   avoids open-ended questions about how much history to serialize and keeps the
   persisted state small and simple.
 
-### 11.11 Candidate enhancement: explicit per-cell interpretation marking (not yet decided)
+### 11.11 Explicit per-cell interpretation marking — decided: yes, by hand
 
-Not present in the original app, and not yet a firm requirement — recorded here
-as an idea to keep in mind while designing the memory table, since it affects
-the data model for a memory cell (§2, §5).
+Not present in the original app. Recorded here as design reasoning for a
+decision that's since been made and implemented, since it affects the data
+model for a memory cell (§2, §5).
 
 §5 requires every memory cell to show all of its interpretations (binary, hex,
 decimal, ASCII, decoded instruction) at once, but gives no indication of which
@@ -587,11 +605,12 @@ considered:
 3. **Let the user explicitly mark each cell's intended interpretation by hand**
    (code, or a specific data representation).
 
-Current leaning is **option 3**: it gives the student direct, unambiguous
+**Decided: option 3** (`src/grid/marks.ts`, the per-row mark picker, and the
+§7.1 `%`-annotation file format): it gives the student direct, unambiguous
 control and avoids both automatic options' failure modes, at the cost of
 requiring the student to actually do the marking.
 
-If option 3 is pursued, §3 already notes the direct consequence: for a 2-cell
+Per option 3, §3 already notes the direct consequence: for a 2-cell
 instruction (`CPY`, `LD`, `LDA`, `ST`, `STA`, `CJP`) whose leading cell is marked
 as code, the trailing operand cell's role is fully determined by that marking —
 it should be **marked automatically as that instruction's data**, not offered as
@@ -599,3 +618,38 @@ a separate, independently-markable cell. This propagation should be
 re-evaluated whenever the leading cell's marking or opcode changes (e.g. if the
 user changes cell N from a 2-cell instruction to something else, cell N+1's
 automatic marking should be reconsidered or cleared).
+
+### 11.12 Color theme — decided: one dedicated soft color per highlight concept
+
+§0 deliberately left exact colors out of this spec's scope. Recorded here is
+the reasoning behind the choice actually shipped, since §5's highlight-state
+count (predicted read/write, actual change, cursor, selection, program
+counter, halted, error) makes "which colors" a real design decision, not a
+cosmetic afterthought.
+
+Two earlier attempts were rejected before landing on the current approach:
+
+1. **One vivid brand color (blue) shared by "interactive" things** — a set
+   bit, the program counter, the focus ring, and default buttons. Rejected:
+   too visually loud for something as common as a set bit, and read as
+   generic "Bootstrap/Facebook blue" rather than a considered choice.
+2. **Diluting that same brand color to different opacities per concept**
+   (e.g. a 10%-opacity wash for the PC row vs. a 20%-opacity wash for
+   halted). Rejected: differences in *shade* of the same hue are harder to
+   tell apart at a glance than differences in *hue* — exactly the "difficult
+   to see which cells are highlighted" problem this theme was meant to fix.
+
+**Decided**: general UI chrome (buttons, focus rings, `--primary`) stays
+plain grayscale, matching the original shadcn default. Every highlight
+concept instead gets its own dedicated, low-chroma/high-lightness ("pastel")
+color, applied at full strength rather than diluted, spread around the color
+wheel so each is distinct by hue: periwinkle (a set bit), beige/yellow
+(selected), pink (program counter), cyan/peach/mint (predicted read/write,
+actual change — mint doubles as "halted successfully," since both mean "a
+normal, expected outcome," rather than adding a further color), and the
+existing red `--destructive` token for errors. Each has a separately-tuned
+dark-mode value (darkened, not just the same color at lower opacity — a
+pastel at full lightness would glow against a dark background). See
+`src/index.css` for the actual token values, and `MemoryRow.tsx`'s
+`rowBackground()` for how one background is chosen by priority when several
+of these states apply to the same row at once.
