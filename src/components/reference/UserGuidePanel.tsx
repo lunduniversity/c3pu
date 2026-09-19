@@ -15,11 +15,12 @@ export function UserGuidePanel() {
       <section>
         <h3 className="mb-1 font-medium">Layout</h3>
         <p>
-          File controls (Open/Save/Examples/Snapshot) and Execution controls (Step/Run/Reset) sit at the top. Below
-          them is the main area: the Memory grid (256 addressable cells) on one side, with the Registers grid
-          (8 named registers) and the Output console stacked on the other - or all three stacked in that same
-          order, top to bottom, on a narrower window. These reference panels dock alongside that main view rather
-          than covering it.
+          File controls (Open/Save/Examples/Snapshot) and Execution controls (Step/Run/Reset) sit at the top,
+          followed by a color legend explaining what each highlight color means. Below that is the main area: the
+          Memory grid (256 addressable cells) on one side, with the Registers grid (8 named registers) and the
+          Output console stacked on the other - or all three stacked in that same order, top to bottom, on a
+          narrower window. Both grids have column headers (Memory's stay pinned to the top as you scroll through
+          its 256 rows). These reference panels dock alongside that main view rather than covering it.
         </p>
       </section>
 

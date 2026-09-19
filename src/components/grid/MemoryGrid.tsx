@@ -20,6 +20,7 @@ import {
 } from '@/grid/model'
 import { useBitGrid } from './useBitGrid'
 import { useRowDrag, type RowRange } from './useRowDrag'
+import { MemoryGridHeader } from './MemoryGridHeader'
 import { MemoryRow } from './MemoryRow'
 
 export interface MemoryGridProps {
@@ -254,6 +255,7 @@ export function MemoryGrid({
         onCopy={handleCopy}
         onPaste={handlePaste}
       >
+        <MemoryGridHeader />
         {state.memory.map((byte, address) => {
           const mark = effectiveMarks[address]
           return (

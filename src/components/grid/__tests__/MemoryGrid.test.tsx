@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
@@ -18,6 +18,20 @@ describe('MemoryGrid', () => {
     expect(screen.getAllByRole('row')).toHaveLength(256)
     expect(screen.getByLabelText('Memory address 0, bit 0, value 0')).toBeInTheDocument()
     expect(screen.getByLabelText('Memory address 255, bit 7, value 0')).toBeInTheDocument()
+  })
+
+  it('shows column headers, sticky to the top of the scroll container, without affecting the 256-row count', () => {
+    render(<Harness />)
+    const grid = screen.getByRole('grid', { name: 'Memory' })
+    expect(within(grid).getByText('Addr')).toBeInTheDocument()
+    expect(within(grid).getByText('Hex')).toBeInTheDocument()
+    expect(within(grid).getByText('Instruction')).toBeInTheDocument()
+    expect(within(grid).getByText('Mark')).toBeInTheDocument()
+    // still exactly 256 - the header is a visual aid, not an ARIA row.
+    expect(screen.getAllByRole('row')).toHaveLength(256)
+
+    const header = within(grid).getByText('Addr').closest('div[class*="sticky"]')
+    expect(header).not.toBeNull()
   })
 
   it('a single click selects a bit without flipping it (mouse-first interaction model)', async () => {

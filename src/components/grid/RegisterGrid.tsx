@@ -8,6 +8,7 @@ import { encodeCellHighlight } from '@/grid/highlightBitmask'
 import { serializeBytes } from '@/engine/program-format'
 import { type GridState, setRegisterBit, toggleRegisterBit } from '@/grid/model'
 import { useBitGrid } from './useBitGrid'
+import { RegisterGridHeader } from './RegisterGridHeader'
 import { RegisterRow } from './RegisterRow'
 
 export interface RegisterGridProps {
@@ -138,6 +139,7 @@ export function RegisterGrid({ state, onChange, autoAdvance = false, memoryCurso
         onCopy={handleCopy}
         onPaste={handlePaste}
       >
+        <RegisterGridHeader />
         {REGISTER_NAMES.map((name, index) => (
           <RegisterRow
             key={name}

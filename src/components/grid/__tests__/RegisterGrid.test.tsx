@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { describe, expect, it } from 'vitest'
@@ -16,6 +16,14 @@ describe('RegisterGrid', () => {
     expect(screen.getByRole('grid', { name: 'Registers' })).toBeInTheDocument()
     expect(screen.getAllByRole('row')).toHaveLength(8)
     expect(screen.getByLabelText('Register PC, bit 7, value 0')).toBeInTheDocument()
+  })
+
+  it('shows column headers without affecting the 8-row count', () => {
+    render(<Harness />)
+    const grid = screen.getByRole('grid', { name: 'Registers' })
+    expect(within(grid).getByText('Reg')).toBeInTheDocument()
+    expect(within(grid).getByText('Hex')).toBeInTheDocument()
+    expect(screen.getAllByRole('row')).toHaveLength(8)
   })
 
   it('a single click selects a bit without flipping it', async () => {

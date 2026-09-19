@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { ExecutionConsole } from '@/components/console/ExecutionConsole'
 import { ExecutionControls } from '@/components/execution/ExecutionControls'
 import { FileControls } from '@/components/file/FileControls'
+import { HighlightLegend } from '@/components/grid/HighlightLegend'
 import { MemoryGrid } from '@/components/grid/MemoryGrid'
 import { RegisterGrid } from '@/components/grid/RegisterGrid'
 import { AsciiTablePanel } from '@/components/reference/AsciiTablePanel'
@@ -145,6 +146,8 @@ function App() {
           <input type="checkbox" checked={autoAdvance} onChange={(e) => setAutoAdvance(e.target.checked)} />
           Auto-advance cursor after editing a bit
         </label>
+
+        <HighlightLegend />
 
         {/* The main area (webapp-requirements.md §2/§4/§6): memory on the
             left, registers-over-output on the right, wide enough for both
