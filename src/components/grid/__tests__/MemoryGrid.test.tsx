@@ -1,7 +1,7 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createGridState, type GridState } from '@/grid/model'
 import { MemoryGrid } from '../MemoryGrid'
 
@@ -188,8 +188,19 @@ describe('MemoryGrid', () => {
     await user.dblClick(screen.getByLabelText('Memory address 0, bit 0, value 0')) // address 0 now 0b10000000
 
     const handle0 = screen.getByLabelText('Drag to move memory address 0')
-    const row2AddressLabel = screen.getAllByRole('row')[2].querySelector('span')!
-    await user.pointer([{ keys: '[MouseLeft>]', target: handle0 }, { target: row2AddressLabel }, { keys: '[/MouseLeft]' }])
+    const row2 = screen.getAllByRole('row')[2]
+    // jsdom does no real layout and doesn't even define elementFromPoint, so
+    // the handle drag's elementFromPoint-based hit-testing (chosen
+    // specifically because pointerenter on other elements isn't reliable
+    // while dragging from a <button> - see useRowDrag.ts) has nothing real
+    // to call; stub it to report "row 2" under the pointer, the same way a
+    // real browser would from coordinates.
+    document.elementFromPoint = vi.fn().mockReturnValue(row2)
+    fireEvent.pointerDown(handle0, { pointerId: 1 })
+    fireEvent.pointerMove(handle0, { pointerId: 1, clientX: 10, clientY: 100 })
+    fireEvent.pointerUp(handle0, { pointerId: 1 })
+    // @ts-expect-error - restoring jsdom's default absence of this method
+    delete document.elementFromPoint
 
     // The marked byte moved from address 0 to address 2, displacing the
     // (zero-valued) cells originally at 1-2 up by one.

@@ -1,9 +1,17 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import App from './App'
 
 describe('App', () => {
+  // Otherwise a prior test's session (memory/marks, debounce-written to
+  // localStorage by usePersistence) can leak into the next render via the
+  // "resume last session" feature (§11.10) - the same reason
+  // usePersistence.test.ts clears it too.
+  beforeEach(() => {
+    window.localStorage.clear()
+  })
+
   it('renders the app heading', () => {
     render(<App />)
     expect(screen.getByRole('heading', { name: 'c3pu' })).toBeInTheDocument()
@@ -21,5 +29,21 @@ describe('App', () => {
     // block PRL prints (marked data ascii).
     expect(screen.getByLabelText('Interpretation mark for memory address 0')).toHaveValue('code')
     expect(screen.getByLabelText('Interpretation mark for memory address 10')).toHaveValue('data-ascii')
+  })
+
+  it("highlights the program counter's cell immediately - before any Step, and again right after Reset", async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    const rows = screen.getAllByRole('row')
+    expect(rows[0]).toHaveAttribute('data-program-counter', 'true')
+
+    await user.click(screen.getByRole('button', { name: 'Step' }))
+    expect(rows[0]).not.toHaveAttribute('data-program-counter')
+    expect(rows[1]).toHaveAttribute('data-program-counter', 'true')
+
+    await user.click(screen.getByRole('button', { name: 'Reset' }))
+    expect(rows[0]).toHaveAttribute('data-program-counter', 'true')
+    expect(rows[1]).not.toHaveAttribute('data-program-counter')
   })
 })

@@ -26,9 +26,17 @@ export interface MemoryGridProps {
   state: GridState
   onChange: (next: GridState) => void
   autoAdvance?: boolean
-  /** Execution state, supplied once Phase 3 wires the engine in; omitted
-   * (or null) while there is nothing currently running. */
+  /** Where predictive read/write highlighting (§5) should be computed from
+   * once execution has started - the program counter - as opposed to
+   * following the edit cursor while idle. Null (the idle default) falls
+   * back to the cursor; this is deliberately *not* the same thing as
+   * `currentPcAddress` below, which always reflects the real PC. */
   programCounterAddress?: number | null
+  /** The program counter's actual current address, always - shown as a
+   * distinct border/background on that memory cell (§5) regardless of
+   * whether execution has started yet, so it's visible immediately after a
+   * program is loaded or Reset, not just after the first Step. */
+  currentPcAddress?: number | null
   lastChanged?: readonly Effect[]
   haltedNormallyAt?: number | null
   errorAt?: number | null
@@ -47,6 +55,7 @@ export function MemoryGrid({
   onChange,
   autoAdvance = false,
   programCounterAddress = null,
+  currentPcAddress = null,
   lastChanged = [],
   haltedNormallyAt = null,
   errorAt = null,
@@ -109,18 +118,11 @@ export function MemoryGrid({
     (range: RowRange, targetStart: number) => onChange(moveMemoryRangeTo(stateRef.current, range.start, range.end, targetStart)),
     [onChange, stateRef],
   )
-  const { dragRange, dropTargetAddress, handleHandlePointerDown, handleRowPointerEnterForDrag } = useRowDrag(handleRowDrop)
-
-  const handleCellPointerEnter = useCallback(
-    (cellIndex: number) => {
-      handleBitPointerEnter(cellIndex)
-      handleRowPointerEnterForDrag(cellIndex)
-    },
-    [handleBitPointerEnter, handleRowPointerEnterForDrag],
-  )
+  const { dragRange, dropTargetAddress, handleHandlePointerDown, handleHandlePointerMove, handleHandlePointerUp, handleHandlePointerCancel } =
+    useRowDrag(handleRowDrop)
 
   const handleHandleStart = useCallback(
-    (event: React.PointerEvent, address: number) => handleHandlePointerDown(event, effectiveRange(address)),
+    (event: React.PointerEvent<HTMLElement>, address: number) => handleHandlePointerDown(event, effectiveRange(address)),
     [handleHandlePointerDown, effectiveRange],
   )
 
@@ -139,11 +141,11 @@ export function MemoryGrid({
         changed: lastChanged,
         cursorAddress: cursor.cellIndex,
         selection: selectionRange,
-        programCounterAddress,
+        programCounterAddress: currentPcAddress,
         haltedNormallyAt,
         errorAt,
       }),
-    [predicted, lastChanged, cursor.cellIndex, selectionRange, programCounterAddress, haltedNormallyAt, errorAt],
+    [predicted, lastChanged, cursor.cellIndex, selectionRange, currentPcAddress, haltedNormallyAt, errorAt],
   )
 
   const handleMarkChange = useCallback(
@@ -271,9 +273,12 @@ export function MemoryGrid({
               onBitKeyDown={handleBitKeyDown}
               onBitPointerDown={handleBitPointerDown}
               onBitDoubleClick={handleBitDoubleClick}
-              onCellPointerEnter={handleCellPointerEnter}
+              onCellPointerEnter={handleBitPointerEnter}
               onRowPointerDown={handleRowPointerDown}
               onHandlePointerDown={handleHandleStart}
+              onHandlePointerMove={handleHandlePointerMove}
+              onHandlePointerUp={handleHandlePointerUp}
+              onHandlePointerCancel={handleHandlePointerCancel}
               onMarkChange={handleMarkChange}
               onClearRow={handleRowClear}
               onDeleteRow={handleRowDelete}

@@ -33,7 +33,10 @@ export interface MemoryRowProps {
    * selection anchored at this row, same as pointer-down on one of its
    * bits, without landing on a specific bit. */
   onRowPointerDown: (event: React.PointerEvent, address: number) => void
-  onHandlePointerDown: (event: React.PointerEvent, address: number) => void
+  onHandlePointerDown: (event: React.PointerEvent<HTMLElement>, address: number) => void
+  onHandlePointerMove: (event: React.PointerEvent<HTMLElement>) => void
+  onHandlePointerUp: (event: React.PointerEvent<HTMLElement>) => void
+  onHandlePointerCancel: (event: React.PointerEvent<HTMLElement>) => void
   onMarkChange: (address: number, mark: UserMark | null) => void
   onClearRow: (address: number) => void
   onDeleteRow: (address: number) => void
@@ -45,6 +48,21 @@ function emphasis(isIntended: boolean, isDeemphasized: boolean): string {
   if (isIntended) return 'font-semibold text-foreground'
   if (isDeemphasized) return 'text-muted-foreground/50'
   return ''
+}
+
+/** One background class, chosen by priority rather than layered - several
+ * of these flags can be true on the same row at once (e.g. the PC's own
+ * cell is selected), and stacking multiple bg-* utility classes leaves
+ * which one actually wins up to Tailwind's generated stylesheet order,
+ * which isn't predictable from here. Error/halted (rare, important) beat an
+ * active selection, which in turn beats the always-on "this is the PC"
+ * background (placeholder color pending the Phase 4 theme). */
+function rowBackground(highlightBitmask: number): string | undefined {
+  if ((highlightBitmask & HL_ERROR) !== 0) return 'bg-destructive/20'
+  if ((highlightBitmask & HL_HALTED) !== 0) return 'bg-primary/10'
+  if ((highlightBitmask & HL_SELECTED) !== 0) return 'bg-accent'
+  if ((highlightBitmask & HL_PROGRAM_COUNTER) !== 0) return 'bg-yellow-100 dark:bg-yellow-900/30'
+  return undefined
 }
 
 function MemoryRowImpl({
@@ -65,6 +83,9 @@ function MemoryRowImpl({
   onCellPointerEnter,
   onRowPointerDown,
   onHandlePointerDown,
+  onHandlePointerMove,
+  onHandlePointerUp,
+  onHandlePointerCancel,
   onMarkChange,
   onClearRow,
   onDeleteRow,
@@ -88,12 +109,14 @@ function MemoryRowImpl({
       data-error={(highlightBitmask & HL_ERROR) !== 0 || undefined}
       data-drop-target={isDropTarget || undefined}
       data-dragging={isBeingDragged || undefined}
+      data-row-address={address}
       className={cn(
         'flex items-center gap-2 border-b border-t-2 border-t-transparent border-b-border/50 px-2 py-0.5',
-        (highlightBitmask & HL_SELECTED) !== 0 && 'bg-accent',
+        // A single background wins by priority - error/halted are rarer,
+        // more important states than the always-on "this is the PC" one,
+        // and an active selection should stay visible even over that.
+        rowBackground(highlightBitmask),
         (highlightBitmask & HL_PROGRAM_COUNTER) !== 0 && 'outline outline-2 outline-primary',
-        (highlightBitmask & HL_ERROR) !== 0 && 'bg-destructive/20',
-        (highlightBitmask & HL_HALTED) !== 0 && 'bg-primary/10',
         isBeingDragged && 'opacity-40',
         isDropTarget && 'border-t-primary',
       )}
@@ -104,6 +127,9 @@ function MemoryRowImpl({
         title="Drag to move"
         className="flex h-6 w-4 shrink-0 cursor-grab touch-none items-center justify-center text-muted-foreground hover:text-foreground active:cursor-grabbing"
         onPointerDown={(event) => onHandlePointerDown(event, address)}
+        onPointerMove={onHandlePointerMove}
+        onPointerUp={onHandlePointerUp}
+        onPointerCancel={onHandlePointerCancel}
       >
         <GripVertical className="h-3.5 w-3.5" aria-hidden="true" />
       </button>

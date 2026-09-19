@@ -160,6 +160,7 @@ function App() {
               onChange={applyGridEdit}
               autoAdvance={autoAdvance}
               programCounterAddress={appState.hasExecutionStarted ? appState.registers.PC : null}
+              currentPcAddress={appState.registers.PC}
               lastChanged={lastChanged}
               haltedNormallyAt={haltedNormallyAt}
               errorAt={errorAt}
