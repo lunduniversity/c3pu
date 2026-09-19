@@ -230,6 +230,29 @@ human-writable and diffable in any plain text editor, not just inside the app.
 Loading a file validates every line is well-formed and reports which line failed
 if not.
 
+A cell's explicit interpretation mark (§11.11 - "code," or "data" with a
+representation) is encoded inline as a `%`-comment on that cell's own line,
+using one of:
+
+```
+<8 bits> % code
+<8 bits> % data              (representation omitted = binary, the default view)
+<8 bits> % data hex
+<8 bits> % data decimal
+<8 bits> % data ascii
+```
+
+Only `%` carries this grammar - `//` and `#` comments are always plain text,
+never marks, so existing notes using those markers are unaffected. A `%`
+comment whose text doesn't match one of the forms above is likewise just an
+ordinary comment: it's ignored for marking purposes, not an error. A file
+with no `%`-mark annotations at all (including every file predating this
+grammar) loads exactly as before, with every cell unmarked. The auto-derived
+"operand" mark (§11.11 - the trailing cell of a 2-cell instruction whose
+leading cell is marked code) is never written to the file; it's always
+recomputed from the leading cell's mark and the current bytes on load, the
+same way it is after any in-app edit.
+
 ### 7.2 File operations
 
 - **Open** — load a program text file (as above) into memory, replacing current

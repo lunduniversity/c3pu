@@ -20,21 +20,42 @@ export interface BytesParseSuccess {
 
 export type BytesParseResult = BytesParseSuccess | ParseFailure
 
+export interface LineEntry {
+  byte: number
+  /** The trimmed text following a `%` marker on this line, or `''` if there
+   * was none (or the line's comment used `//`/`#` instead). A higher layer
+   * (e.g. grid/marks.ts's cell-interpretation annotations) interprets this
+   * text against its own grammar - this module only knows it's a comment. */
+  percentComment: string
+}
+
+export interface LinesParseSuccess {
+  ok: true
+  entries: LineEntry[]
+}
+
+export type LinesParseResult = LinesParseSuccess | ParseFailure
+
 /**
- * Parses the canonical binary-lines format (webapp-requirements.md §7.1) into
- * a plain byte array, with no padding/truncation to the 256-cell memory
- * size: one line per byte, 8 binary digits (MSB first), optional internal
+ * Parses the canonical binary-lines format (webapp-requirements.md §7.1):
+ * one line per byte, 8 binary digits (MSB first), optional internal
  * whitespace (e.g. a "nibble nibble" grouping), and `//`/`#`/`%` line
  * comments. Blank/comment-only lines are skipped entirely (they don't
- * consume a byte). This is the shared parser behind both whole-program
- * files (§7.2) and range copy/paste (§5, via the same text format).
+ * consume a byte). Also surfaces each line's `%`-comment text (if any) as
+ * `percentComment`, since a `%` comment (unlike `//`/`#`) can carry a
+ * higher layer's own annotation grammar (see LineEntry) - this is the
+ * shared parser behind whole-program files (§7.2), range copy/paste (§5),
+ * and per-cell mark annotations.
  */
-export function parseBytes(text: string, maxBytes: number = Number.POSITIVE_INFINITY): BytesParseResult {
-  const bytes: number[] = []
+export function parseLinesWithComments(text: string, maxBytes: number = Number.POSITIVE_INFINITY): LinesParseResult {
+  const entries: LineEntry[] = []
   const lines = text.split(/\r\n|\r|\n/)
 
   for (let i = 0; i < lines.length; i++) {
-    const withoutComment = lines[i].split(/\/\/|#|%/, 1)[0]
+    const line = lines[i]
+    const match = line.match(/\/\/|#|%/)
+    const withoutComment = match ? line.slice(0, match.index) : line
+    const percentComment = match?.[0] === '%' ? line.slice((match.index ?? 0) + 1).trim() : ''
     const trimmed = withoutComment.trim()
     if (trimmed.length === 0) continue
 
@@ -42,13 +63,25 @@ export function parseBytes(text: string, maxBytes: number = Number.POSITIVE_INFI
     if (!/^[01]{8}$/.test(bits)) {
       return { ok: false, line: i + 1, message: `expected 8 binary digits, got "${trimmed}"` }
     }
-    if (bytes.length >= maxBytes) {
+    if (entries.length >= maxBytes) {
       return { ok: false, line: i + 1, message: `exceeds ${maxBytes} cells` }
     }
-    bytes.push(Number.parseInt(bits, 2))
+    entries.push({ byte: Number.parseInt(bits, 2), percentComment })
   }
 
-  return { ok: true, bytes }
+  return { ok: true, entries }
+}
+
+/**
+ * Parses the canonical binary-lines format into a plain byte array, with no
+ * padding/truncation to the 256-cell memory size - the shared parser behind
+ * both whole-program files (§7.2) and range copy/paste (§5). Comment text is
+ * discarded; use parseLinesWithComments directly to keep it.
+ */
+export function parseBytes(text: string, maxBytes: number = Number.POSITIVE_INFINITY): BytesParseResult {
+  const result = parseLinesWithComments(text, maxBytes)
+  if (!result.ok) return result
+  return { ok: true, bytes: result.entries.map((entry) => entry.byte) }
 }
 
 /** Serializes bytes to the canonical binary-lines format, one line per byte,

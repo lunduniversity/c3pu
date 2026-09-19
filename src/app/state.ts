@@ -1,6 +1,7 @@
 import type { CpuState } from '@/engine/cpu'
 import { createRegisters, type HaltReason, type RuntimeError } from '@/engine/types'
 import { createGridState, type GridState } from '@/grid/model'
+import type { UserMarks } from '@/grid/marks'
 
 /**
  * The whole app's editable state: GridState (memory/registers/marks - what
@@ -19,8 +20,9 @@ export interface AppState extends GridState {
   hasExecutionStarted: boolean
 }
 
-export function createAppState(memory?: readonly number[]): AppState {
-  return { ...createGridState(memory), halted: false, haltReason: null, error: null, hasExecutionStarted: false }
+export function createAppState(memory?: readonly number[], marks?: UserMarks): AppState {
+  const grid = createGridState(memory)
+  return { ...grid, marks: marks ?? grid.marks, halted: false, haltReason: null, error: null, hasExecutionStarted: false }
 }
 
 export function toCpuState(state: AppState): CpuState {

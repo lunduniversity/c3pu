@@ -66,3 +66,28 @@ export function clearUserMark(memory: readonly number[], marks: UserMarks, addre
   delete next[address]
   return next
 }
+
+/**
+ * The §7.1 program-file annotation grammar for a user mark: appended after a
+ * `%` on a memory cell's line (e.g. `0100 0001 % code`, `0000 0000 % data
+ * hex`). `data` with no representation means binary, the default view. Kept
+ * here (rather than in engine/program-format.ts) since the grammar's
+ * vocabulary - "code"/"data"/representations - is grid-layer, not something
+ * the engine's pure byte-format parser needs to know about.
+ */
+export function markToAnnotation(mark: UserMark): string {
+  if (mark.kind === 'code') return 'code'
+  return mark.representation === 'binary' ? 'data' : `data ${mark.representation}`
+}
+
+/** Parses one line's `%`-comment text against the annotation grammar above.
+ * Returns null for anything that doesn't match - an ordinary, non-mark
+ * comment, left untouched (backward-compatible with plain `%` comments in
+ * hand-written or pre-existing files). */
+export function annotationToMark(text: string): UserMark | null {
+  const trimmed = text.trim().toLowerCase()
+  if (trimmed === 'code') return { kind: 'code' }
+  const dataMatch = trimmed.match(/^data(?:\s+(hex|decimal|ascii))?$/)
+  if (dataMatch) return { kind: 'data', representation: (dataMatch[1] as DataRepresentation | undefined) ?? 'binary' }
+  return null
+}

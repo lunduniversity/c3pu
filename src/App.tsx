@@ -50,9 +50,11 @@ function App() {
   })
   const file = useFileState({
     memory: appState.memory,
+    marks: appState.marks,
     onLoadProgram: handleLoadProgram,
     initialFileName: persistence.settings.lastFileName,
     initialBaselineMemory: persistence.initialMemory ?? null,
+    initialBaselineMarks: persistence.initialMarks ?? null,
   })
   const [memoryCursorAddress, setMemoryCursorAddress] = useState<number | null>(0)
 

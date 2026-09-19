@@ -37,9 +37,10 @@ export interface UseExecutionResult {
    * marks *and* execution status together, unlike a plain grid edit. Pushes
    * an undo step. */
   handleDeleteAllData: () => void
-  /** Replaces memory wholesale - Open, an example, or a snapshot import.
-   * Not undoable (§11.9 scopes undo/redo to in-place edits). */
-  handleLoadProgram: (memory: readonly number[]) => void
+  /** Replaces memory (and, for a marks-aware program file, marks) wholesale -
+   * Open, an example, or a snapshot import. Not undoable (§11.9 scopes
+   * undo/redo to in-place edits). */
+  handleLoadProgram: (memory: readonly number[], marks?: UserMarks) => void
   canUndo: boolean
   canRedo: boolean
   handleUndo: () => void
@@ -209,12 +210,14 @@ export function useExecution(options: UseExecutionOptions = {}): UseExecutionRes
   }, [recordUndoStep, setBothAppState, stopExecution])
 
   /** Replaces memory wholesale (Open, an example, or a snapshot import) -
-   * registers and marks reset, execution status cleared, like a fresh
-   * session with this program already typed in. Not part of undo/redo. */
+   * registers reset, execution status cleared, like a fresh session with
+   * this program already typed in. Marks come from the loaded file when it
+   * has any (§7.1), otherwise reset along with everything else. Not part of
+   * undo/redo. */
   const handleLoadProgram = useCallback(
-    (memory: readonly number[]) => {
+    (memory: readonly number[], marks?: UserMarks) => {
       stopExecution()
-      setBothAppState(createAppState(memory))
+      setBothAppState(createAppState(memory, marks))
       setLastChanged([])
     },
     [setBothAppState, stopExecution],

@@ -2,6 +2,7 @@ import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { EXAMPLE_PROGRAMS } from '@/examples'
 import { downloadTextFile } from '@/file/download'
+import type { UserMarks } from '@/grid/marks'
 import { exportSnapshot } from '@/snapshot/codec'
 import { useFileState } from '../useFileState'
 
@@ -30,13 +31,15 @@ describe('useFileState', () => {
     promptSpy.mockRestore()
   })
 
-  function setup(initialMemory: number[] = new Array(256).fill(0)) {
+  function setup(initialMemory: number[] = new Array(256).fill(0), initialMarks: UserMarks = {}) {
     let memory = initialMemory
-    const onLoadProgram = vi.fn((next: readonly number[]) => {
+    let marks = initialMarks
+    const onLoadProgram = vi.fn((next: readonly number[], nextMarks?: UserMarks) => {
       memory = [...next]
+      marks = nextMarks ?? {}
     })
-    const view = renderHook(() => useFileState({ memory, onLoadProgram }))
-    return { view, onLoadProgram, getMemory: () => memory }
+    const view = renderHook(() => useFileState({ memory, marks, onLoadProgram }))
+    return { view, onLoadProgram, getMemory: () => memory, getMarks: () => marks }
   }
 
   it('is not dirty in a fresh, all-zero session', () => {
@@ -55,6 +58,54 @@ describe('useFileState', () => {
     expect(view.result.current.isDirty).toBe(false)
   })
 
+  it('opening a file with mark annotations loads the marks too', async () => {
+    const { view, onLoadProgram, getMarks } = setup()
+    const file = makeFile('marked.txt', '0101 0110 % code\n0100 1000\n0000 0000 % data hex')
+    await act(async () => view.result.current.openFromFile(file))
+    expect(onLoadProgram).toHaveBeenCalledWith(expect.any(Array), { 0: { kind: 'code' }, 2: { kind: 'data', representation: 'hex' } })
+    view.rerender()
+    expect(getMarks()).toEqual({ 0: { kind: 'code' }, 2: { kind: 'data', representation: 'hex' } })
+    expect(view.result.current.isDirty).toBe(false)
+  })
+
+  it('an old-style file with no annotations loads with no marks', async () => {
+    const { view, getMarks } = setup()
+    const file = makeFile('plain.txt', '01010110\n01001000')
+    await act(async () => view.result.current.openFromFile(file))
+    view.rerender()
+    expect(getMarks()).toEqual({})
+  })
+
+  it('becomes dirty when marks change without memory changing', async () => {
+    let memory = new Array(256).fill(0)
+    let marks: UserMarks = {}
+    const onLoadProgram = vi.fn((next: readonly number[], nextMarks?: UserMarks) => {
+      memory = [...next]
+      marks = nextMarks ?? {}
+    })
+    const view = renderHook(() => useFileState({ memory, marks, onLoadProgram }))
+
+    const file = makeFile('a.txt', '0101 0110 % code')
+    await act(async () => view.result.current.openFromFile(file))
+    view.rerender()
+    expect(view.result.current.isDirty).toBe(false)
+
+    // Simulate a mark-only edit via the grid (e.g. clearing the mark),
+    // outside of any file operation: memory is unchanged.
+    marks = {}
+    view.rerender()
+    expect(view.result.current.isDirty).toBe(true)
+  })
+
+  it('Save serializes marks alongside memory', () => {
+    const memory = new Array(256).fill(0)
+    memory[0] = 0b01010110
+    const marks: UserMarks = { 0: { kind: 'code' } }
+    const view = renderHook(() => useFileState({ memory, marks, onLoadProgram: vi.fn() }))
+    act(() => view.result.current.save())
+    expect(downloadTextFile).toHaveBeenCalledWith('program.txt', expect.stringContaining('% code'))
+  })
+
   it('rejects a malformed file without touching memory, and shows why', async () => {
     const { view, onLoadProgram } = setup()
     const file = makeFile('bad.txt', 'not binary')
@@ -69,7 +120,7 @@ describe('useFileState', () => {
     const onLoadProgram = vi.fn((next: readonly number[]) => {
       memory = [...next]
     })
-    const view = renderHook(() => useFileState({ memory, onLoadProgram }))
+    const view = renderHook(() => useFileState({ marks: {}, memory, onLoadProgram }))
 
     const file = makeFile('a.txt', '01010110')
     await act(async () => view.result.current.openFromFile(file))
@@ -86,7 +137,7 @@ describe('useFileState', () => {
 
   it('Save downloads under the existing file name and clears dirtiness', () => {
     const memory = [1, 2, 3]
-    const view = renderHook(() => useFileState({ memory, onLoadProgram: vi.fn() }))
+    const view = renderHook(() => useFileState({ marks: {}, memory, onLoadProgram: vi.fn() }))
     expect(view.result.current.isDirty).toBe(true) // non-zero, never saved
 
     act(() => view.result.current.save())
@@ -97,7 +148,7 @@ describe('useFileState', () => {
   })
 
   it('Save As prompts for a name and uses it', () => {
-    const view = renderHook(() => useFileState({ memory: [1], onLoadProgram: vi.fn() }))
+    const view = renderHook(() => useFileState({ marks: {}, memory: [1], onLoadProgram: vi.fn() }))
     act(() => view.result.current.saveAs())
     view.rerender()
     expect(promptSpy).toHaveBeenCalled()
@@ -106,7 +157,7 @@ describe('useFileState', () => {
 
   it('Save As does nothing if the prompt is cancelled', () => {
     promptSpy.mockReturnValue(null)
-    const view = renderHook(() => useFileState({ memory: [1], onLoadProgram: vi.fn() }))
+    const view = renderHook(() => useFileState({ marks: {}, memory: [1], onLoadProgram: vi.fn() }))
     act(() => view.result.current.saveAs())
     view.rerender()
     expect(view.result.current.fileName).toBeNull()
@@ -114,7 +165,7 @@ describe('useFileState', () => {
 
   it('Close asks for confirmation when dirty, and clears memory + file association on confirm', () => {
     const onLoadProgram = vi.fn()
-    const view = renderHook(() => useFileState({ memory: [1, 2, 3], onLoadProgram }))
+    const view = renderHook(() => useFileState({ marks: {}, memory: [1, 2, 3], onLoadProgram }))
     act(() => view.result.current.close())
     expect(confirmSpy).toHaveBeenCalled()
     expect(onLoadProgram).toHaveBeenCalledWith(new Array(256).fill(0))
@@ -125,21 +176,21 @@ describe('useFileState', () => {
   it('Close does nothing if the user declines to discard changes', () => {
     confirmSpy.mockReturnValue(false)
     const onLoadProgram = vi.fn()
-    const view = renderHook(() => useFileState({ memory: [1, 2, 3], onLoadProgram }))
+    const view = renderHook(() => useFileState({ marks: {}, memory: [1, 2, 3], onLoadProgram }))
     act(() => view.result.current.close())
     expect(onLoadProgram).not.toHaveBeenCalled()
   })
 
   it('does not ask for confirmation when there is nothing unsaved to lose', () => {
     const onLoadProgram = vi.fn()
-    const view = renderHook(() => useFileState({ memory: new Array(256).fill(0), onLoadProgram }))
+    const view = renderHook(() => useFileState({ marks: {}, memory: new Array(256).fill(0), onLoadProgram }))
     act(() => view.result.current.close())
     expect(confirmSpy).not.toHaveBeenCalled()
   })
 
   it('loadExample loads a bundled example and treats it as a clean baseline with no file name', () => {
     const onLoadProgram = vi.fn()
-    const view = renderHook(() => useFileState({ memory: new Array(256).fill(0), onLoadProgram }))
+    const view = renderHook(() => useFileState({ marks: {}, memory: new Array(256).fill(0), onLoadProgram }))
     act(() => view.result.current.loadExample(EXAMPLE_PROGRAMS[0]))
     expect(onLoadProgram).toHaveBeenCalledOnce()
     view.rerender()
@@ -152,7 +203,7 @@ describe('useFileState', () => {
     memory[1] = 6
     memory[2] = 7
     const onLoadProgram = vi.fn()
-    const view = renderHook(() => useFileState({ memory, onLoadProgram }))
+    const view = renderHook(() => useFileState({ marks: {}, memory, onLoadProgram }))
     const text = view.result.current.exportSnapshotText()
     expect(text).toBe(exportSnapshot(memory))
 
@@ -163,7 +214,7 @@ describe('useFileState', () => {
 
   it('importSnapshotText rejects malformed text without touching memory', () => {
     const onLoadProgram = vi.fn()
-    const view = renderHook(() => useFileState({ memory: [1], onLoadProgram }))
+    const view = renderHook(() => useFileState({ marks: {}, memory: [1], onLoadProgram }))
     const result = view.result.current.importSnapshotText('garbage')
     expect(result.ok).toBe(false)
     expect(onLoadProgram).not.toHaveBeenCalled()
