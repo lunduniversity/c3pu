@@ -141,37 +141,49 @@ function App() {
           </Button>
         </div>
 
-        <ExecutionConsole consoleState={consoleState} onClear={handleClearConsole} />
-
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={autoAdvance} onChange={(e) => setAutoAdvance(e.target.checked)} />
           Auto-advance cursor after editing a bit
         </label>
 
-        <section>
-          <h2 className="mb-2 text-lg font-medium">Registers</h2>
-          <RegisterGrid
-            state={appState}
-            onChange={applyGridEdit}
-            autoAdvance={autoAdvance}
-            memoryCursorAddress={predictionSource}
-            lastChanged={lastChanged}
-          />
-        </section>
-        <section>
-          <h2 className="mb-2 text-lg font-medium">Memory</h2>
-          <MemoryGrid
-            state={appState}
-            onChange={applyGridEdit}
-            autoAdvance={autoAdvance}
-            programCounterAddress={appState.hasExecutionStarted ? appState.registers.PC : null}
-            lastChanged={lastChanged}
-            haltedNormallyAt={haltedNormallyAt}
-            errorAt={errorAt}
-            onCursorChange={setMemoryCursorAddress}
-            onDeleteAllData={handleDeleteAllData}
-          />
-        </section>
+        {/* The main area (webapp-requirements.md §2/§4/§6): memory on the
+            left, registers-over-output on the right, wide enough for both
+            to read comfortably side by side (the memory grid's row is the
+            widest element on the page). Below that width everything stacks
+            in reading order - memory, then registers, then output - via the
+            same flex-col the wide layout overrides to flex-row. */}
+        <div className="flex flex-col gap-6 xl:flex-row xl:items-start">
+          <section className="min-w-0 xl:flex-1">
+            <h2 className="mb-2 text-lg font-medium">Memory</h2>
+            <MemoryGrid
+              state={appState}
+              onChange={applyGridEdit}
+              autoAdvance={autoAdvance}
+              programCounterAddress={appState.hasExecutionStarted ? appState.registers.PC : null}
+              lastChanged={lastChanged}
+              haltedNormallyAt={haltedNormallyAt}
+              errorAt={errorAt}
+              onCursorChange={setMemoryCursorAddress}
+              onDeleteAllData={handleDeleteAllData}
+            />
+          </section>
+
+          <div className="flex min-w-0 flex-col gap-6 xl:w-[30rem] xl:shrink-0">
+            <section>
+              <h2 className="mb-2 text-lg font-medium">Registers</h2>
+              <RegisterGrid
+                state={appState}
+                onChange={applyGridEdit}
+                autoAdvance={autoAdvance}
+                memoryCursorAddress={predictionSource}
+                lastChanged={lastChanged}
+              />
+            </section>
+            <section>
+              <ExecutionConsole consoleState={consoleState} onClear={handleClearConsole} />
+            </section>
+          </div>
+        </div>
       </div>
 
       <div className="flex w-full flex-col gap-3 lg:w-80 lg:shrink-0">

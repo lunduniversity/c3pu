@@ -101,7 +101,15 @@ export function RegisterGrid({ state, onChange, autoAdvance = false, memoryCurso
           Clear
         </Button>
       </div>
-      <div role="grid" aria-label="Registers" aria-rowcount={8} aria-multiselectable="true" onCopy={handleCopy} onPaste={handlePaste}>
+      <div
+        role="grid"
+        aria-label="Registers"
+        aria-rowcount={8}
+        aria-multiselectable="true"
+        className="overflow-x-auto"
+        onCopy={handleCopy}
+        onPaste={handlePaste}
+      >
         {REGISTER_NAMES.map((name, index) => (
           <RegisterRow
             key={name}

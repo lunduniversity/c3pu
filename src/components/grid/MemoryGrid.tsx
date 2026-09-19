@@ -161,7 +161,7 @@ export function MemoryGrid({
         aria-label="Memory"
         aria-rowcount={256}
         aria-multiselectable="true"
-        className="max-h-[70vh] overflow-y-auto"
+        className="max-h-[70vh] overflow-auto"
         onCopy={handleCopy}
         onPaste={handlePaste}
       >
