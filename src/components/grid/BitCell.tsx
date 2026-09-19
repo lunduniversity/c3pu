@@ -12,6 +12,7 @@ export interface BitCellProps {
   onKeyDown: (event: React.KeyboardEvent, cellIndex: number, bitIndex: number) => void
   onPointerDown: (event: React.PointerEvent, cellIndex: number, bitIndex: number) => void
   onPointerEnter: (cellIndex: number) => void
+  onDoubleClick: (event: React.MouseEvent, cellIndex: number, bitIndex: number) => void
 }
 
 /**
@@ -31,6 +32,7 @@ function BitCellImpl({
   onKeyDown,
   onPointerDown,
   onPointerEnter,
+  onDoubleClick,
 }: BitCellProps) {
   return (
     <div
@@ -48,6 +50,7 @@ function BitCellImpl({
       onKeyDown={(event) => onKeyDown(event, cellIndex, bitIndex)}
       onPointerDown={(event) => onPointerDown(event, cellIndex, bitIndex)}
       onPointerEnter={() => onPointerEnter(cellIndex)}
+      onDoubleClick={(event) => onDoubleClick(event, cellIndex, bitIndex)}
     >
       {value}
     </div>

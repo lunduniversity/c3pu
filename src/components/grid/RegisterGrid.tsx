@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
+import { useLatestRef } from '@/lib/useLatestRef'
 import { REGISTER_NAMES, type Effect } from '@/engine/types'
 import { parseClipboardText } from '@/grid/clipboard'
 import { computeRegisterHighlights, predictedEffects } from '@/grid/highlight'
@@ -18,21 +19,26 @@ export interface RegisterGridProps {
 }
 
 export function RegisterGrid({ state, onChange, autoAdvance = false, memoryCursorAddress = null, lastChanged = [] }: RegisterGridProps) {
+  // Same memo()-stability reasoning as MemoryGrid's stateRef (§11.4): these
+  // callbacks are passed identically to every row.
+  const stateRef = useLatestRef(state)
+
   const onToggleBit = useCallback(
-    (index: number, bitIndex: number) => onChange(toggleRegisterBit(state, REGISTER_NAMES[index], bitIndex)),
-    [state, onChange],
+    (index: number, bitIndex: number) => onChange(toggleRegisterBit(stateRef.current, REGISTER_NAMES[index], bitIndex)),
+    [onChange, stateRef],
   )
   const onSetBit = useCallback(
-    (index: number, bitIndex: number, value: 0 | 1) => onChange(setRegisterBit(state, REGISTER_NAMES[index], bitIndex, value)),
-    [state, onChange],
+    (index: number, bitIndex: number, value: 0 | 1) => onChange(setRegisterBit(stateRef.current, REGISTER_NAMES[index], bitIndex, value)),
+    [onChange, stateRef],
   )
 
-  const { cursor, selection, registerCellRef, handleBitKeyDown, handleBitPointerDown, handleBitPointerEnter } = useBitGrid({
-    cellCount: 8,
-    autoAdvance,
-    onToggleBit,
-    onSetBit,
-  })
+  const { cursor, selection, registerCellRef, handleBitKeyDown, handleBitPointerDown, handleRowPointerDown, handleBitPointerEnter, handleBitDoubleClick } =
+    useBitGrid({
+      cellCount: 8,
+      autoAdvance,
+      onToggleBit,
+      onSetBit,
+    })
 
   const selectionRange = useMemo(
     () => ({ start: REGISTER_NAMES[Math.min(selection.anchor, selection.focus)], end: REGISTER_NAMES[Math.max(selection.anchor, selection.focus)] }),
@@ -59,13 +65,35 @@ export function RegisterGrid({ state, onChange, autoAdvance = false, memoryCurso
     [predicted, lastChanged, cursor.cellIndex, selectionRange],
   )
 
-  const handleClear = useCallback(() => {
-    const lo = Math.min(selection.anchor, selection.focus)
-    const hi = Math.max(selection.anchor, selection.focus)
-    const registers = { ...state.registers }
-    for (let i = lo; i <= hi; i++) registers[REGISTER_NAMES[i]] = 0
-    onChange({ ...state, registers })
-  }, [state, selection, onChange])
+  const selectionRef = useLatestRef(selection)
+
+  const clearRange = useCallback(
+    (lo: number, hi: number) => {
+      const registers = { ...stateRef.current.registers }
+      for (let i = lo; i <= hi; i++) registers[REGISTER_NAMES[i]] = 0
+      onChange({ ...stateRef.current, registers })
+    },
+    [onChange, stateRef],
+  )
+
+  const handleClear = useCallback(
+    () => clearRange(Math.min(selection.anchor, selection.focus), Math.max(selection.anchor, selection.focus)),
+    [clearRange, selection],
+  )
+
+  /** A row's own Clear button (mouse-first interaction model): clears the
+   * whole active selection if this register is part of it, or just this
+   * one register otherwise. Reads selection via a ref so this stays stable
+   * across selection changes, same reasoning as MemoryGrid's effectiveRange. */
+  const handleClearRow = useCallback(
+    (index: number) => {
+      const lo = Math.min(selectionRef.current.anchor, selectionRef.current.focus)
+      const hi = Math.max(selectionRef.current.anchor, selectionRef.current.focus)
+      if (index >= lo && index <= hi) clearRange(lo, hi)
+      else clearRange(index, index)
+    },
+    [clearRange, selectionRef],
+  )
 
   const handleCopy = useCallback(
     (event: React.ClipboardEvent) => {
@@ -121,7 +149,10 @@ export function RegisterGrid({ state, onChange, autoAdvance = false, memoryCurso
             registerCellRef={registerCellRef}
             onKeyDown={handleBitKeyDown}
             onPointerDown={handleBitPointerDown}
-            onPointerEnter={handleBitPointerEnter}
+            onDoubleClick={handleBitDoubleClick}
+            onCellPointerEnter={handleBitPointerEnter}
+            onRowPointerDown={handleRowPointerDown}
+            onClearRow={handleClearRow}
           />
         ))}
       </div>

@@ -18,11 +18,29 @@ describe('RegisterGrid', () => {
     expect(screen.getByLabelText('Register PC, bit 7, value 0')).toBeInTheDocument()
   })
 
-  it('toggles a register bit on click', async () => {
+  it('a single click selects a bit without flipping it', async () => {
     const user = userEvent.setup()
     render(<Harness />)
-    await user.click(screen.getByLabelText('Register PC, bit 7, value 0'))
+    const bit = screen.getByLabelText('Register PC, bit 7, value 0')
+    await user.click(bit)
+    expect(screen.getByLabelText('Register PC, bit 7, value 0')).toBeInTheDocument()
+    expect(bit).toHaveFocus()
+  })
+
+  it('double-click flips a register bit', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.dblClick(screen.getByLabelText('Register PC, bit 7, value 0'))
     expect(screen.getByLabelText('Register PC, bit 7, value 1')).toBeInTheDocument()
+  })
+
+  it("a row's own Clear button clears just that register", async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.dblClick(screen.getByLabelText('Register R0, bit 7, value 0'))
+    expect(screen.getByLabelText('Register R0, bit 7, value 1')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Clear register R0' }))
+    expect(screen.getByLabelText('Register R0, bit 7, value 0')).toBeInTheDocument()
   })
 
   it('has no decoded-instruction column or mark picker (registers are not code)', () => {

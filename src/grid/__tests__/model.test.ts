@@ -3,7 +3,9 @@ import {
   clearMemoryRange,
   createGridState,
   deleteMemoryRange,
+  insertBlankRows,
   moveMemoryRange,
+  moveMemoryRangeTo,
   pasteMemoryBytes,
   readMemoryBit,
   readRegisterBit,
@@ -95,6 +97,81 @@ describe('moveMemoryRange', () => {
     expect(moveMemoryRange(state, 0, 1, 'up')).toBe(state)
     state = createGridState(new Array(256).fill(0).map((_, i) => i))
     expect(moveMemoryRange(state, 254, 255, 'down')).toBe(state)
+  })
+})
+
+describe('moveMemoryRangeTo', () => {
+  it('moves a block to an arbitrary later position, preserving relative order of displaced cells', () => {
+    let state = createGridState([1, 2, 3, 4, 5, 6])
+    state = moveMemoryRangeTo(state, 0, 1, 4)
+    // block [1,2] (addresses 0-1) ends up starting at address 4
+    expect(state.memory.slice(0, 6)).toEqual([3, 4, 5, 6, 1, 2])
+  })
+
+  it('moves a block to an arbitrary earlier position', () => {
+    let state = createGridState([1, 2, 3, 4, 5, 6])
+    state = moveMemoryRangeTo(state, 4, 5, 1)
+    expect(state.memory.slice(0, 6)).toEqual([1, 5, 6, 2, 3, 4])
+  })
+
+  it('moves marks along with the block and with the displaced cells', () => {
+    let state = createGridState([1, 2, 3, 4, 5])
+    state = { ...state, marks: { 0: { kind: 'code' }, 2: { kind: 'data', representation: 'hex' } } }
+    state = moveMemoryRangeTo(state, 0, 0, 2)
+    // value 1 (with its "code" mark) moves to address 2; value 3 (with its
+    // "data hex" mark) shifts down to address 1.
+    expect(state.memory.slice(0, 3)).toEqual([2, 3, 1])
+    expect(state.marks[2]).toEqual({ kind: 'code' })
+    expect(state.marks[1]).toEqual({ kind: 'data', representation: 'hex' })
+    expect(state.marks[0]).toBeUndefined()
+  })
+
+  it('is a no-op when the target is the current position, or clamped back to it', () => {
+    const state = createGridState([1, 2, 3])
+    expect(moveMemoryRangeTo(state, 0, 1, 0)).toBe(state)
+    expect(moveMemoryRangeTo(state, 0, 1, -5)).toBe(state) // clamped to 0
+  })
+
+  it('clamps an out-of-range target to the last position the block can occupy', () => {
+    let state = createGridState(new Array(256).fill(0).map((_, i) => i))
+    state = moveMemoryRangeTo(state, 0, 1, 1000)
+    // the 2-cell block can end no later than address 254 (254 + 2 = 256)
+    expect(state.memory[254]).toBe(0)
+    expect(state.memory[255]).toBe(1)
+  })
+
+  it('moveMemoryRange (single-step up/down) still behaves exactly as before', () => {
+    let state = createGridState([1, 2, 3, 4, 5])
+    state = moveMemoryRange(state, 2, 3, 'up')
+    expect(state.memory.slice(0, 5)).toEqual([1, 3, 4, 2, 5])
+
+    state = createGridState([1, 2, 3, 4, 5])
+    state = moveMemoryRange(state, 1, 2, 'down')
+    expect(state.memory.slice(0, 5)).toEqual([1, 4, 2, 3, 5])
+  })
+})
+
+describe('insertBlankRows', () => {
+  it('inserts blank cells at the given address, shifting the rest down and truncating at the end', () => {
+    let state = createGridState([1, 2, 3, 4, 5])
+    state = insertBlankRows(state, 1, 2)
+    expect(state.memory.slice(0, 7)).toEqual([1, 0, 0, 2, 3, 4, 5])
+    expect(state.memory).toHaveLength(256)
+  })
+
+  it('shifts marks along with the cells they describe, dropping any that fall off the end', () => {
+    let state = createGridState(new Array(256).fill(0))
+    state = { ...state, marks: { 0: { kind: 'code' }, 255: { kind: 'data', representation: 'hex' } } }
+    state = insertBlankRows(state, 0, 1)
+    expect(state.marks[1]).toEqual({ kind: 'code' })
+    expect(state.marks[0]).toBeUndefined()
+    expect(Object.keys(state.marks)).toHaveLength(1) // address 255's mark fell off the end
+  })
+
+  it('is a no-op for a non-positive count or a position at/past the end of memory', () => {
+    const state = createGridState([1, 2, 3])
+    expect(insertBlankRows(state, 1, 0)).toBe(state)
+    expect(insertBlankRows(state, 256, 3)).toBe(state)
   })
 })
 

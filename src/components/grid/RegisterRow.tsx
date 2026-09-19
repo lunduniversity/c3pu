@@ -1,4 +1,5 @@
 import { memo } from 'react'
+import { Eraser } from 'lucide-react'
 import type { RegisterName } from '@/engine/types'
 import { toAsciiText, toDecimalText, toHexText } from '@/grid/format'
 import { HL_ACTUAL_CHANGE, HL_ERROR, HL_HALTED, HL_PREDICTED_READ, HL_PREDICTED_WRITE, HL_PROGRAM_COUNTER, HL_SELECTED } from '@/grid/highlightBitmask'
@@ -14,7 +15,10 @@ export interface RegisterRowProps {
   registerCellRef: (cellIndex: number, bitIndex: number, el: HTMLElement | null) => void
   onKeyDown: (event: React.KeyboardEvent, cellIndex: number, bitIndex: number) => void
   onPointerDown: (event: React.PointerEvent, cellIndex: number, bitIndex: number) => void
-  onPointerEnter: (cellIndex: number) => void
+  onDoubleClick: (event: React.MouseEvent, cellIndex: number, bitIndex: number) => void
+  onCellPointerEnter: (cellIndex: number) => void
+  onRowPointerDown: (event: React.PointerEvent, index: number) => void
+  onClearRow: (index: number) => void
 }
 
 function RegisterRowImpl({
@@ -26,7 +30,10 @@ function RegisterRowImpl({
   registerCellRef,
   onKeyDown,
   onPointerDown,
-  onPointerEnter,
+  onDoubleClick,
+  onCellPointerEnter,
+  onRowPointerDown,
+  onClearRow,
 }: RegisterRowProps) {
   return (
     <div
@@ -41,9 +48,31 @@ function RegisterRowImpl({
         (highlightBitmask & HL_HALTED) !== 0 && 'bg-primary/10',
       )}
     >
-      <span className="w-10 shrink-0 font-mono text-xs font-semibold text-muted-foreground">{name}</span>
+      <button
+        type="button"
+        aria-label={`Clear register ${name}`}
+        title="Clear"
+        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+        onClick={() => onClearRow(index)}
+      >
+        <Eraser className="h-3.5 w-3.5" aria-hidden="true" />
+      </button>
 
-      <div role="presentation" aria-hidden="true" className="flex w-6 shrink-0 items-center gap-0.5">
+      <span
+        className="w-10 shrink-0 cursor-pointer font-mono text-xs font-semibold text-muted-foreground select-none"
+        onPointerDown={(event) => onRowPointerDown(event, index)}
+        onPointerEnter={() => onCellPointerEnter(index)}
+      >
+        {name}
+      </span>
+
+      <div
+        role="presentation"
+        aria-hidden="true"
+        className="flex w-6 shrink-0 cursor-pointer items-center gap-0.5"
+        onPointerDown={(event) => onRowPointerDown(event, index)}
+        onPointerEnter={() => onCellPointerEnter(index)}
+      >
         {(highlightBitmask & HL_PREDICTED_READ) !== 0 && <span title="Would be read" className="h-2 w-2 rounded-full bg-blue-400" />}
         {(highlightBitmask & HL_PREDICTED_WRITE) !== 0 && <span title="Would be written" className="h-2 w-2 rounded-full bg-orange-400" />}
         {(highlightBitmask & HL_ACTUAL_CHANGE) !== 0 && <span title="Just changed" className="h-2 w-2 rounded-full bg-green-500" />}
@@ -64,7 +93,8 @@ function RegisterRowImpl({
               cellRef={(el) => registerCellRef(index, bitIndex, el)}
               onKeyDown={onKeyDown}
               onPointerDown={onPointerDown}
-              onPointerEnter={onPointerEnter}
+              onPointerEnter={onCellPointerEnter}
+              onDoubleClick={onDoubleClick}
             />
           )
         })}

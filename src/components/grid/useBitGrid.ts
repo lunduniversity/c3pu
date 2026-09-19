@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useLatestRef } from '@/lib/useLatestRef'
 
 /**
  * Shared cursor/selection/keyboard/pointer logic for the memory and
@@ -32,8 +33,21 @@ export interface UseBitGridResult {
   moveCursorTo: (cellIndex: number, bitIndex?: number) => void
   registerCellRef: (cellIndex: number, bitIndex: number, el: HTMLElement | null) => void
   handleBitKeyDown: (event: React.KeyboardEvent, cellIndex: number, bitIndex: number) => void
+  /** Pointer-down on a bit: moves the cursor/selection there (spreadsheet-
+   * style click-to-select), but does not edit the bit - see
+   * handleBitDoubleClick. */
   handleBitPointerDown: (event: React.PointerEvent, cellIndex: number, bitIndex: number) => void
+  /** Pointer-down anywhere else on a row (address label, predicted-effect
+   * dots, the row handle/actions gutter) - starts the same drag-select as
+   * handleBitPointerDown, so a range selection can be started without
+   * landing on a specific bit. Deliberately not wired to the read-only
+   * representation columns (hex/decimal/ASCII/instruction), which stay
+   * natively selectable text per webapp-requirements.md §11.3. */
+  handleRowPointerDown: (event: React.PointerEvent, cellIndex: number) => void
   handleBitPointerEnter: (cellIndex: number) => void
+  /** Double-click (or the F key) is how a bit is actually flipped now that a
+   * single click only selects. */
+  handleBitDoubleClick: (event: React.MouseEvent, cellIndex: number, bitIndex: number) => void
   isTabStop: (cellIndex: number, bitIndex: number) => boolean
 }
 
@@ -42,6 +56,11 @@ export function useBitGrid({ cellCount, autoAdvance, onToggleBit, onSetBit }: Us
   const [selection, setSelection] = useState<CellRange>({ anchor: 0, focus: 0 })
   const draggingRef = useRef(false)
   const cellRefs = useRef(new Map<string, HTMLElement>())
+  // Read inside handleRowPointerDown instead of closing over `cursor`
+  // directly, so that handler's identity stays stable across cursor moves -
+  // it's passed identically to every row, and an unstable identity would
+  // bust each row's memo() on essentially every click (§11.4).
+  const cursorRef = useLatestRef(cursor)
 
   const focusCell = useCallback((cellIndex: number, bitIndex: number) => {
     cellRefs.current.get(`${cellIndex}:${bitIndex}`)?.focus()
@@ -132,29 +151,47 @@ export function useBitGrid({ cellCount, autoAdvance, onToggleBit, onSetBit }: Us
     [advanceFrom, autoAdvance, moveCursor, onSetBit, onToggleBit],
   )
 
+  // Click-to-select rather than click-to-flip (the mouse-first interaction
+  // model, webapp-requirements.md §11.2 revised): a single pointer-down only
+  // moves the cursor/selection, matching a spreadsheet's click-selects
+  // convention. Editing is now double-click (handleBitDoubleClick) or the
+  // existing keyboard shortcuts (0/1/F/Space, unchanged).
   const handleBitPointerDown = useCallback(
     (event: React.PointerEvent, cellIndex: number, bitIndex: number) => {
       // Without this, the browser's own "focus the element under the
       // pointer" default action fires after this handler returns and
-      // silently overrides whatever cell we just focused programmatically
-      // (e.g. the auto-advanced next bit) - caught by manual browser testing.
+      // silently overrides whatever cell we just focused programmatically -
+      // caught by manual browser testing.
       event.preventDefault()
       draggingRef.current = true
-      if (event.shiftKey) {
-        moveCursor({ cellIndex, bitIndex }, true)
-        return
-      }
-      moveCursor({ cellIndex, bitIndex }, false)
-      onToggleBit(cellIndex, bitIndex)
-      if (autoAdvance) advanceFrom(cellIndex, bitIndex)
+      moveCursor({ cellIndex, bitIndex }, event.shiftKey)
     },
-    [advanceFrom, autoAdvance, moveCursor, onToggleBit],
+    [moveCursor],
+  )
+
+  const handleRowPointerDown = useCallback(
+    (event: React.PointerEvent, cellIndex: number) => {
+      event.preventDefault()
+      draggingRef.current = true
+      moveCursor({ cellIndex, bitIndex: cursorRef.current.bitIndex }, event.shiftKey)
+    },
+    [moveCursor, cursorRef],
   )
 
   const handleBitPointerEnter = useCallback((cellIndex: number) => {
     if (!draggingRef.current) return
     setSelection((prev) => ({ anchor: prev.anchor, focus: cellIndex }))
   }, [])
+
+  const handleBitDoubleClick = useCallback(
+    (event: React.MouseEvent, cellIndex: number, bitIndex: number) => {
+      event.preventDefault()
+      moveCursor({ cellIndex, bitIndex }, false)
+      onToggleBit(cellIndex, bitIndex)
+      if (autoAdvance) advanceFrom(cellIndex, bitIndex)
+    },
+    [advanceFrom, autoAdvance, moveCursor, onToggleBit],
+  )
 
   useEffect(() => {
     const onPointerUp = () => {
@@ -174,7 +211,9 @@ export function useBitGrid({ cellCount, autoAdvance, onToggleBit, onSetBit }: Us
     registerCellRef,
     handleBitKeyDown,
     handleBitPointerDown,
+    handleRowPointerDown,
     handleBitPointerEnter,
+    handleBitDoubleClick,
     isTabStop,
   }
 }

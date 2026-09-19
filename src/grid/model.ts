@@ -97,42 +97,72 @@ export function deleteMemoryRange(state: GridState, start: number, end: number):
 }
 
 /**
+ * Moves the selected block [start,end] so it starts at `targetStart`
+ * (before or after its current position), shifting the cells it passes
+ * over accordingly - an in-place reorder, not a copy. The general form of
+ * moveMemoryRange's "shift by one," used by the row handle's drag-to-
+ * arbitrary-position (webapp-requirements.md §5, mouse-first interaction
+ * model). A no-op if the block would end up back where it started, or
+ * `targetStart` is clamped to the same position by memory's bounds.
+ */
+export function moveMemoryRangeTo(state: GridState, start: number, end: number, targetStart: number): GridState {
+  const [lo, hi] = clampRange(start, end)
+  const count = hi - lo + 1
+  const clampedTarget = Math.max(0, Math.min(targetStart, MEMORY_SIZE - count))
+  if (clampedTarget === lo) return state
+
+  // Remove the block, then reinsert it at the target position - simplest
+  // expressed as one array of {byte, mark} pairs so memory and marks can
+  // never drift out of sync with each other mid-computation.
+  const cells: { byte: number; mark: UserMarks[number] | undefined }[] = state.memory.map((byte, address) => ({
+    byte,
+    mark: state.marks[address],
+  }))
+  const block = cells.splice(lo, count)
+  cells.splice(clampedTarget, 0, ...block)
+
+  const memory = cells.map((cell) => cell.byte)
+  const marks: Record<number, UserMarks[number]> = {}
+  cells.forEach((cell, address) => {
+    if (cell.mark !== undefined) marks[address] = cell.mark
+  })
+  return { ...state, memory, marks }
+}
+
+/**
  * Shifts the selected block of cells by one position, displacing the
- * single adjacent neighbor cell accordingly (an in-place reorder, not a
- * copy) - webapp-requirements.md §5. A no-op at either end of memory.
+ * single adjacent neighbor cell accordingly - webapp-requirements.md §5. A
+ * no-op at either end of memory.
  */
 export function moveMemoryRange(state: GridState, start: number, end: number, direction: 'up' | 'down'): GridState {
   const [lo, hi] = clampRange(start, end)
-  if (direction === 'up' && lo === 0) return state
-  if (direction === 'down' && hi === MEMORY_SIZE - 1) return state
+  return moveMemoryRangeTo(state, lo, hi, direction === 'up' ? lo - 1 : lo + 1)
+}
+
+/**
+ * Inserts `count` blank (zero-valued, unmarked) cells starting at
+ * `atAddress`, shifting existing cells (and their marks) down and
+ * truncating whatever falls off the end of memory - the mirror image of
+ * deleteMemoryRange's shift-up-and-pad-with-zero, for the mouse-first
+ * "Insert row before/after" row action. A no-op past the end of memory
+ * (nothing to shift into) or for a non-positive count.
+ */
+export function insertBlankRows(state: GridState, atAddress: number, count: number): GridState {
+  const at = Math.max(0, Math.min(atAddress, MEMORY_SIZE))
+  if (count <= 0 || at >= MEMORY_SIZE) return state
 
   const memory = state.memory.slice()
-  const marks = { ...state.marks }
+  memory.splice(at, 0, ...new Array(count).fill(0))
+  memory.length = MEMORY_SIZE
 
-  if (direction === 'up') {
-    const neighborValue = memory[lo - 1]
-    const neighborMark = marks[lo - 1]
-    for (let i = lo - 1; i < hi; i++) {
-      memory[i] = memory[i + 1]
-      if (marks[i + 1] !== undefined) marks[i] = marks[i + 1]
-      else delete marks[i]
-    }
-    memory[hi] = neighborValue
-    if (neighborMark !== undefined) marks[hi] = neighborMark
-    else delete marks[hi]
-  } else {
-    const neighborValue = memory[hi + 1]
-    const neighborMark = marks[hi + 1]
-    for (let i = hi + 1; i > lo; i--) {
-      memory[i] = memory[i - 1]
-      if (marks[i - 1] !== undefined) marks[i] = marks[i - 1]
-      else delete marks[i]
-    }
-    memory[lo] = neighborValue
-    if (neighborMark !== undefined) marks[lo] = neighborMark
-    else delete marks[lo]
+  const marks: Record<number, UserMarks[number]> = {}
+  for (const [key, mark] of Object.entries(state.marks)) {
+    const address = Number(key)
+    if (address < at) marks[address] = mark
+    else if (address + count < MEMORY_SIZE) marks[address + count] = mark
+    // marks shifted at/past address 256 belonged to cells that fell off the
+    // end - dropped, same as deleteMemoryRange drops marks in a deleted range.
   }
-
   return { ...state, memory, marks }
 }
 

@@ -15,34 +15,44 @@ export function UserGuidePanel() {
       <section>
         <h3 className="mb-1 font-medium">Layout</h3>
         <p>
-          File controls (Open/Save/Examples/Snapshot) and Execution controls (Step/Run/Reset) sit at the top.
-          Below them is the Output console, then the Registers grid (8 named registers) and the Memory grid
-          (256 addressable cells). These reference panels dock alongside that main view rather than covering it.
+          File controls (Open/Save/Examples/Snapshot) and Execution controls (Step/Run/Reset) sit at the top. Below
+          them is the main area: the Memory grid (256 addressable cells) on one side, with the Registers grid
+          (8 named registers) and the Output console stacked on the other - or all three stacked in that same
+          order, top to bottom, on a narrower window. These reference panels dock alongside that main view rather
+          than covering it.
         </p>
       </section>
 
       <section>
         <h3 className="mb-1 font-medium">Editing memory and registers</h3>
         <p>
-          Every cell is edited bit by bit, not as a decimal or hex number - click a bit to flip it, or use the
-          keyboard: <kbd>0</kbd>/<kbd>1</kbd> set a bit explicitly, <kbd>F</kbd> flips it, arrow keys move the
-          cursor, and <kbd>Enter</kbd> advances to the next bit. The "auto-advance cursor" option moves the
-          cursor forward automatically after every edit, useful for typing in a program bit by bit. Each memory
-          row also shows the byte as hex, decimal, ASCII, and its live decoded-instruction reading side by side.
-          You can optionally mark a cell as "code" or a specific data representation to state which reading is
-          the intended one - marking a two-cell instruction as code automatically marks its second byte as that
-          instruction's operand.
+          Every cell is edited bit by bit, not as a decimal or hex number. A single click on a bit only selects
+          it, the way clicking a cell in a spreadsheet does - it doesn't change the value. To flip a bit,
+          double-click it, or use the keyboard: <kbd>0</kbd>/<kbd>1</kbd> set a bit explicitly, <kbd>F</kbd> flips
+          it, arrow keys move the cursor, and <kbd>Enter</kbd> advances to the next bit. The "auto-advance cursor"
+          option moves the cursor forward automatically after every edit, useful for typing in a program bit by
+          bit. Each memory row also shows the byte as hex, decimal, ASCII, and its live decoded-instruction
+          reading side by side. You can optionally mark a cell as "code" or a specific data representation to
+          state which reading is the intended one - marking a two-cell instruction as code automatically marks
+          its second byte as that instruction's operand. These marks are saved and loaded along with the program
+          file, as a <code>% code</code> or <code>% data ...</code> annotation on that cell's line.
         </p>
       </section>
 
       <section>
-        <h3 className="mb-1 font-medium">Selecting, moving, and copying</h3>
+        <h3 className="mb-1 font-medium">Selecting, moving, and copying memory rows</h3>
         <p>
-          Click and drag across memory rows (or shift-click) to select a range of whole cells. With a selection
-          active: Clear zeroes the selected cells in place, Delete removes them and shifts everything after up
-          to close the gap, and Move up/down shifts the selected block past its neighbor. Copy and Paste
+          Click and drag anywhere on a row - its address, the little effect dots, or a bit - to select a range of
+          whole rows (shift-click extends the current selection too); dragging over the read-only hex/decimal/
+          ASCII/instruction text instead leaves it selectable as ordinary text, for copying a value out. Each row
+          also has its own handle and action buttons on the left: drag the handle to move that row (or the whole
+          selection, if it's part of one) to any position, or use the buttons to Clear, Delete, or Insert a blank
+          row before/after - all scoped to the current selection when the row you click on is part of one, or to
+          just that row otherwise. The toolbar above the grid offers the same Clear/Delete/Move up/Move down as
+          one-click actions on whatever is currently selected. Copy and Paste
           (<kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+<kbd>C</kbd>/<kbd>V</kbd>) round-trip through the same plain binary
-          text format used for program files, so you can paste a selection into any text editor and back.
+          text format used for program files (marks aren't included), so you can paste a selection into any text
+          editor and back.
         </p>
       </section>
 

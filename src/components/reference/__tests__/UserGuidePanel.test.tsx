@@ -8,7 +8,7 @@ describe('UserGuidePanel', () => {
     expect(screen.getByText('Quickstart')).toBeInTheDocument()
     expect(screen.getByText('Layout')).toBeInTheDocument()
     expect(screen.getByText('Editing memory and registers')).toBeInTheDocument()
-    expect(screen.getByText('Selecting, moving, and copying')).toBeInTheDocument()
+    expect(screen.getByText('Selecting, moving, and copying memory rows')).toBeInTheDocument()
     expect(screen.getByText('Running a program')).toBeInTheDocument()
   })
 })

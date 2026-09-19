@@ -163,20 +163,27 @@ Notes:
     than the selection can hold truncates at the destination range's bounds;
     pasting fewer leaves the remainder of the destination unchanged; pasting past
     the end of memory is rejected/dropped for the overflow, not wrapped.
-  - **Move up / down** — shift the selected block of cells by one position,
-    displacing neighboring cells accordingly (an in-place reorder, not a copy) —
-    useful for reordering instructions while writing a program.
+  - **Move up / down, or to an arbitrary position** — shift the selected block
+    of cells by one position (toolbar buttons), or drag it via a per-row handle
+    to any position (mouse-first interaction model, §11.2/§11.3) — either way,
+    an in-place reorder, not a copy, displacing the cells it passes over.
+    Useful for reordering instructions while writing a program.
   - **Clear** — zero the selected cells' values, keeping their positions/count
     unchanged.
   - **Delete** — remove the selected cells entirely and shift everything after
     them up to close the gap (a structural edit, distinct from Clear).
+  - **Insert before / after** (new capability, mouse-first interaction model) —
+    insert as many blank (zero-valued, unmarked) cells as the selection holds
+    immediately before or after it, shifting everything from that point on
+    down and truncating whatever falls off the end of memory — the mirror
+    image of Delete.
 - **Delete all data**: a single, explicitly confirmed, irreversible action that
   resets all of memory and all registers to zero — distinct from Reset (§4, which
   preserves the program) and from Close (§7, which only affects the file
   association).
 - **Undo / Redo** (new capability — not present in the original app; decided for
   the web version, see §11.9): edit operations (bit toggles, clears, deletes,
-  moves, pastes, and Delete All Data) should be undoable and redoable.
+  inserts, moves, pastes, and Delete All Data) should be undoable and redoable.
 - Registers use the same per-cell editing model (bits, hex/dec/ASCII) as memory,
   but have no "decoded instruction" column and cannot be reordered/deleted — only
   cleared — since register order is fixed and meaningful. `PC` is directly
@@ -401,9 +408,15 @@ the text-input paradigm entirely rather than inherit those workarounds:
 - Render each bit as a small focusable non-text element (e.g. a `<button>` or a
   `<div role="gridcell">`) inside a grid representing the memory/register table
   — not an `<input>`.
-- Click/tap flips the bit directly. This also avoids an actual `<input>`'s
-  virtual keyboard popping up on touch devices for what is really a single
-  toggle — a problem the desktop app never had to consider.
+- **Revised for a mouse-first interaction model** (superseding this
+  subsection's original "click flips the bit directly"): a single click/tap
+  only selects, matching the click-selects convention students already know
+  from spreadsheet apps; flipping is a double-click (or the keyboard, see
+  below). This still avoids an actual `<input>`'s virtual keyboard popping up
+  on touch devices for what is really a single toggle — a problem the desktop
+  app never had to consider — and additionally makes a bit behave like any
+  other selectable cell, so click-and-drag range selection (§11.3) can start
+  from a bit without also editing it as a side effect.
 - Keyboard navigation follows the standard "grid with roving tabindex" pattern
   (one element in the grid is tab-reachable at a time; arrow keys move that
   focus across bits/cells/rows). `0`/`1` set a bit explicitly; a flip key (`F`
@@ -434,6 +447,19 @@ architecturally separate:
   know intuitively. Leaving native selection enabled there too would produce a
   confusing double highlight (the browser's own selection color layered on top
   of the app's custom selection highlight).
+- **Revised, mouse-first interaction model**: a memory row's drag-select zone
+  extends beyond its bits to the address label, the predicted-effect dots, and
+  the row's own handle/action-buttons gutter (§11.11-adjacent — see below) —
+  clicking and dragging over any of those starts the same range selection as
+  dragging across bits, so a selection doesn't require landing on a specific
+  bit. It deliberately stops there: the read-only representation columns keep
+  the native text selection described above. Each memory row additionally
+  gets a drag handle (moves that row, or the active selection if the row is
+  part of one, to an arbitrary position — a generalization of the single-step
+  Move up/down in §5) and per-row Clear/Delete/Insert-before/Insert-after
+  buttons, scoped the same way; registers get the row-level click-to-select
+  and a per-row Clear (no handle or delete/insert, since register order is
+  fixed per §5).
 - Implement copy/paste via the native `copy`/`paste` DOM events (intercepted to
   serialize/parse the program text format from §7.1) rather than the
   asynchronous `navigator.clipboard` API — the latter can require a permission
