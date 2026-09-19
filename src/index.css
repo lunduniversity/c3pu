@@ -24,6 +24,12 @@
     --color-input: var(--input);
     --color-border: var(--border);
     --color-destructive: var(--destructive);
+    --color-predicted-read: var(--predicted-read);
+    --color-predicted-write: var(--predicted-write);
+    --color-actual-change: var(--actual-change);
+    --color-bit-on: var(--bit-on);
+    --color-selected: var(--selected);
+    --color-pc: var(--pc);
     --color-accent-foreground: var(--accent-foreground);
     --color-accent: var(--accent);
     --color-muted-foreground: var(--muted-foreground);
@@ -54,6 +60,9 @@
     --card-foreground: oklch(0.145 0 0);
     --popover: oklch(1 0 0);
     --popover-foreground: oklch(0.145 0 0);
+    /* Back to plain grayscale for general chrome (buttons, focus rings) -
+       every highlight below gets its own dedicated soft color instead, so
+       nothing needs to borrow "the brand color" to stand out. */
     --primary: oklch(0.205 0 0);
     --primary-foreground: oklch(0.985 0 0);
     --secondary: oklch(0.97 0 0);
@@ -66,6 +75,17 @@
     --border: oklch(0.922 0 0);
     --input: oklch(0.922 0 0);
     --ring: oklch(0.708 0 0);
+    /* Highlight colors (§5): one soft, pastel hue per concept, spread
+       around the color wheel so each is distinct from the others by hue,
+       not by how saturated/loud it is. All calibrated to sit near white at
+       full opacity, used directly rather than diluted - a pastel is
+       already gentle, so it doesn't need a low-opacity wash on top. */
+    --bit-on: oklch(0.87 0.045 260); /* soft periwinkle */
+    --predicted-read: oklch(0.85 0.06 200); /* soft cyan */
+    --predicted-write: oklch(0.87 0.07 55); /* soft peach */
+    --actual-change: oklch(0.85 0.08 150); /* soft mint */
+    --selected: oklch(0.91 0.045 90); /* soft beige/yellow */
+    --pc: oklch(0.88 0.05 350); /* soft pink */
     --chart-1: oklch(0.87 0 0);
     --chart-2: oklch(0.556 0 0);
     --chart-3: oklch(0.439 0 0);
@@ -101,6 +121,14 @@
     --border: oklch(1 0 0 / 10%);
     --input: oklch(1 0 0 / 15%);
     --ring: oklch(0.556 0 0);
+    /* Same hues as light mode, darkened rather than diluted - a pastel used
+       at full lightness would glow against this dark background. */
+    --bit-on: oklch(0.42 0.05 260);
+    --predicted-read: oklch(0.42 0.07 200);
+    --predicted-write: oklch(0.48 0.09 55);
+    --actual-change: oklch(0.42 0.08 150);
+    --selected: oklch(0.38 0.045 90);
+    --pc: oklch(0.42 0.06 350);
     --chart-1: oklch(0.87 0 0);
     --chart-2: oklch(0.556 0 0);
     --chart-3: oklch(0.439 0 0);

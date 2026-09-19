@@ -42,10 +42,10 @@ function RegisterRowImpl({
       aria-selected={(highlightBitmask & HL_SELECTED) !== 0}
       className={cn(
         'flex items-center gap-2 border-b border-border/50 px-2 py-0.5',
-        (highlightBitmask & HL_SELECTED) !== 0 && 'bg-accent',
-        (highlightBitmask & HL_PROGRAM_COUNTER) !== 0 && 'outline outline-2 outline-primary',
-        (highlightBitmask & HL_ERROR) !== 0 && 'bg-destructive/20',
-        (highlightBitmask & HL_HALTED) !== 0 && 'bg-primary/10',
+        (highlightBitmask & HL_SELECTED) !== 0 && 'bg-selected',
+        (highlightBitmask & HL_PROGRAM_COUNTER) !== 0 && 'outline outline-2 outline-pc',
+        (highlightBitmask & HL_ERROR) !== 0 && 'bg-destructive/35',
+        (highlightBitmask & HL_HALTED) !== 0 && 'bg-actual-change',
       )}
     >
       <button
@@ -73,9 +73,9 @@ function RegisterRowImpl({
         onPointerDown={(event) => onRowPointerDown(event, index)}
         onPointerEnter={() => onCellPointerEnter(index)}
       >
-        {(highlightBitmask & HL_PREDICTED_READ) !== 0 && <span title="Would be read" className="h-2 w-2 rounded-full bg-blue-400" />}
-        {(highlightBitmask & HL_PREDICTED_WRITE) !== 0 && <span title="Would be written" className="h-2 w-2 rounded-full bg-orange-400" />}
-        {(highlightBitmask & HL_ACTUAL_CHANGE) !== 0 && <span title="Just changed" className="h-2 w-2 rounded-full bg-green-500" />}
+        {(highlightBitmask & HL_PREDICTED_READ) !== 0 && <span title="Would be read" className="h-2 w-2 rounded-full bg-predicted-read" />}
+        {(highlightBitmask & HL_PREDICTED_WRITE) !== 0 && <span title="Would be written" className="h-2 w-2 rounded-full bg-predicted-write" />}
+        {(highlightBitmask & HL_ACTUAL_CHANGE) !== 0 && <span title="Just changed" className="h-2 w-2 rounded-full bg-actual-change" />}
       </div>
 
       <div role="presentation" className="flex shrink-0 gap-0.5">

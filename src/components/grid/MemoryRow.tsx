@@ -56,12 +56,13 @@ function emphasis(isIntended: boolean, isDeemphasized: boolean): string {
  * which one actually wins up to Tailwind's generated stylesheet order,
  * which isn't predictable from here. Error/halted (rare, important) beat an
  * active selection, which in turn beats the always-on "this is the PC"
- * background (placeholder color pending the Phase 4 theme). */
+ * background. Halted reuses the actual-change hue (both mean "a normal,
+ * expected outcome") rather than adding a seventh color to the palette. */
 function rowBackground(highlightBitmask: number): string | undefined {
-  if ((highlightBitmask & HL_ERROR) !== 0) return 'bg-destructive/20'
-  if ((highlightBitmask & HL_HALTED) !== 0) return 'bg-primary/10'
-  if ((highlightBitmask & HL_SELECTED) !== 0) return 'bg-accent'
-  if ((highlightBitmask & HL_PROGRAM_COUNTER) !== 0) return 'bg-yellow-100 dark:bg-yellow-900/30'
+  if ((highlightBitmask & HL_ERROR) !== 0) return 'bg-destructive/35'
+  if ((highlightBitmask & HL_HALTED) !== 0) return 'bg-actual-change'
+  if ((highlightBitmask & HL_SELECTED) !== 0) return 'bg-selected'
+  if ((highlightBitmask & HL_PROGRAM_COUNTER) !== 0) return 'bg-pc'
   return undefined
 }
 
@@ -116,7 +117,7 @@ function MemoryRowImpl({
         // more important states than the always-on "this is the PC" one,
         // and an active selection should stay visible even over that.
         rowBackground(highlightBitmask),
-        (highlightBitmask & HL_PROGRAM_COUNTER) !== 0 && 'outline outline-2 outline-primary',
+        (highlightBitmask & HL_PROGRAM_COUNTER) !== 0 && 'outline outline-2 outline-pc',
         isBeingDragged && 'opacity-40',
         isDropTarget && 'border-t-primary',
       )}
@@ -188,9 +189,9 @@ function MemoryRowImpl({
         onPointerDown={(event) => onRowPointerDown(event, address)}
         onPointerEnter={() => onCellPointerEnter(address)}
       >
-        {(highlightBitmask & HL_PREDICTED_READ) !== 0 && <span title="Would be read" className="h-2 w-2 rounded-full bg-blue-400" />}
-        {(highlightBitmask & HL_PREDICTED_WRITE) !== 0 && <span title="Would be written" className="h-2 w-2 rounded-full bg-orange-400" />}
-        {(highlightBitmask & HL_ACTUAL_CHANGE) !== 0 && <span title="Just changed" className="h-2 w-2 rounded-full bg-green-500" />}
+        {(highlightBitmask & HL_PREDICTED_READ) !== 0 && <span title="Would be read" className="h-2 w-2 rounded-full bg-predicted-read" />}
+        {(highlightBitmask & HL_PREDICTED_WRITE) !== 0 && <span title="Would be written" className="h-2 w-2 rounded-full bg-predicted-write" />}
+        {(highlightBitmask & HL_ACTUAL_CHANGE) !== 0 && <span title="Just changed" className="h-2 w-2 rounded-full bg-actual-change" />}
       </div>
 
       <div role="presentation" className="flex shrink-0 gap-0.5">

@@ -44,7 +44,7 @@ function BitCellImpl({
       data-value={value}
       className={cn(
         'flex h-6 w-6 shrink-0 select-none items-center justify-center rounded-sm border font-mono text-xs outline-none',
-        value ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground',
+        value ? 'bg-bit-on text-foreground' : 'bg-background text-muted-foreground',
         isCursor ? 'ring-2 ring-ring ring-offset-1' : 'border-border',
       )}
       onKeyDown={(event) => onKeyDown(event, cellIndex, bitIndex)}
