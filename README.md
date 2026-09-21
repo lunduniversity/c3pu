@@ -72,3 +72,44 @@ npm run lint    # run ESLint
 
 See [`CLAUDE.md`](CLAUDE.md) for a deeper tour of the codebase's
 architecture if you're planning to make changes.
+
+## Releasing a new version
+
+Releases are cut from `main` and published automatically by CI. To ship
+whatever is currently on `main`:
+
+```bash
+npm run release
+```
+
+This prompts for the release type (patch/minor/major), bumps the version in
+`package.json`, and creates + pushes a commit and a `vX.Y.Z` tag. Pushing
+that tag triggers the `Release` GitHub Actions workflow
+([`.github/workflows/release.yml`](.github/workflows/release.yml)), which
+builds, lints, tests, and — if all of that passes — publishes a GitHub
+Release with the built `.html` file attached and its notes auto-generated
+from the commits since the previous release.
+
+The `.html` file is attached under the same fixed name (`c3pu.html`) on
+every release, so this link always serves the latest one without needing to
+be updated:
+
+```
+https://github.com/lunduniversity/c3pu/releases/latest/download/c3pu.html
+```
+
+If the release workflow fails, the tag and commit already pushed stay as-is
+— don't try to move or delete the tag, and don't force-push a fix onto it.
+For a one-off/transient failure (flaky test, network blip), just re-run the
+failed workflow from the Actions tab — it re-runs against the same tagged
+commit. For an actual bug, fix it on `main` and cut a new patch release
+(`npm run release` → patch); the tag stays pinned to the commit that failed,
+so a real fix always needs a new version. The `main` branch also runs the
+same lint/test/build steps on every push/PR
+([`.github/workflows/ci.yml`](.github/workflows/ci.yml)), so a broken build
+should rarely reach the point of tagging a release in the first place.
+
+Git tags plus the GitHub [Releases](../../releases) page (each release
+records exactly which commit and notes it came from) already form a
+version-controlled release log, so there's no separate changelog file to
+keep in sync.

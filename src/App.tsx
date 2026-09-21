@@ -116,7 +116,10 @@ function App() {
     <div className="flex flex-col gap-6 p-4 lg:flex-row lg:items-start">
       <div className="flex min-w-0 flex-1 flex-col gap-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold">c3pu</h1>
+          <div className="flex items-baseline gap-2">
+            <h1 className="text-2xl font-semibold">c3pu</h1>
+            <span className="text-xs text-muted-foreground">v{__APP_VERSION__}</span>
+          </div>
           <ZoomControl zoomPercent={settings.zoomPercent} onChange={(zoomPercent) => updateSettings({ zoomPercent })} />
         </div>
 
