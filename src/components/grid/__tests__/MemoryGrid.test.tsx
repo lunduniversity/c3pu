@@ -133,7 +133,7 @@ describe('MemoryGrid', () => {
 
     await user.selectOptions(markPicker0, 'unmarked')
     expect(screen.getByLabelText('Interpretation mark for memory address 1')).toBeEnabled()
-  }, 20000)
+  })
 
   it('clears the selected range without changing its size when Clear is clicked', async () => {
     const user = userEvent.setup()
